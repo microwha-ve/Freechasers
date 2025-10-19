@@ -9,8 +9,6 @@ int main(){
 	cluster bot(std::getenv("token"));
     
 	bot.on_log(utility::cout_logger());
-    
-    activity(at_listening, "", "bhop_arcane", "");
 
 	bot.on_slashcommand([](const slashcommand_t& event){
 		if (event.command.get_command_name() == "ping"){
@@ -23,6 +21,7 @@ int main(){
 		if (run_once<struct register_bot_commands>()){
 			bot.global_command_create(slashcommand("ping", "Pong!", bot.me.id));
 		}
+        activity(at_listening, "Phoon", "bhop_arcane idk im just testing stuff out", "");
 	});
 
 	bot.start(st_wait);
