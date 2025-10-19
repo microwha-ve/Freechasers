@@ -8,7 +8,7 @@ int main(){
     
 	bot.on_log(dpp::utility::cout_logger());
     
-    dpp::activity:activity(at_competing, "BSHC", "bhop_arcane", "");
+    dpp::activity::activity(at_competing, "BSHC", "bhop_arcane", "");
 
 	bot.on_slashcommand([](const dpp::slashcommand_t& event){
 		if (event.command.get_command_name() == "ping"){
