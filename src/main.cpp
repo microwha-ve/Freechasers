@@ -10,7 +10,7 @@ int main(){
     
 	bot.on_log(utility::cout_logger());
     
-    activity(at_competing, "BSHC", "bhop_arcane", "");
+    activity(at_listening, "", "bhop_arcane", "");
 
 	bot.on_slashcommand([](const slashcommand_t& event){
 		if (event.command.get_command_name() == "ping"){
