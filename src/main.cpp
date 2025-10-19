@@ -2,27 +2,29 @@
 #include <dpp/presence.h>
 #include <cstdlib>
 
+using namespace dpp;
+
 int main(){
     
-	dpp::cluster bot(std::getenv("token"));
+	cluster bot(std::getenv("token"));
     
-	bot.on_log(dpp::utility::cout_logger());
+	bot.on_log(utility::cout_logger());
     
-    dpp::activity(dpp::at_competing, std::string("BSHC"), std::string("bhop_arcane"), std::string(""));
+    activity(at_competing, "BSHC", "bhop_arcane", "");
 
-	bot.on_slashcommand([](const dpp::slashcommand_t& event){
+	bot.on_slashcommand([](const slashcommand_t& event){
 		if (event.command.get_command_name() == "ping"){
 			event.reply("Pong!");
 		}
 	});
 
 
-	bot.on_ready([&bot](const dpp::ready_t& event) {
-		if (dpp::run_once<struct register_bot_commands>()){
-			bot.global_command_create(dpp::slashcommand("ping", "Pong!", bot.me.id));
+	bot.on_ready([&bot](const ready_t& event) {
+		if (run_once<struct register_bot_commands>()){
+			bot.global_command_create(slashcommand("ping", "Pong!", bot.me.id));
 		}
 	});
 
-	bot.start(dpp::st_wait);
+	bot.start(st_wait);
 
 }
