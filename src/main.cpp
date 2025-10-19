@@ -1,11 +1,8 @@
 #include <dpp/dpp.h>
 #include <cstdlib>
 
-const std::string TOKEN = std::getenv(token);
-
 int main(){
-	dpp::cluster bot(TOKEN);
-
+	dpp::cluster bot(std::getenv("token"));
 	bot.on_log(dpp::utility::cout_logger());
 
 	bot.on_slashcommand([](const dpp::slashcommand_t& event){
