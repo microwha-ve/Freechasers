@@ -21,6 +21,9 @@ int main() {
         }
         if (event.command.get_command_name() == "status") {
             
+            presence_status status;
+            activity_type activity;
+            
             std::string status_str = event.get_parameter("Status");
             std::string activity_str = event.get_parameter("Activity");
             
