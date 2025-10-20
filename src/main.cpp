@@ -49,7 +49,7 @@ int main() {
             
             bot.set_presence(presence(status, activity, "It Worked!"));
             
-            event.reply("It worked!")
+            event.reply("It worked!");
         }
     });
 
