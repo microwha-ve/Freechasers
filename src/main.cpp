@@ -26,7 +26,7 @@ int main() {
         }
 
         if (event.command.get_command_name() == "status") {
-            if (!event.command.get_issuing_user().is_team_user/* != 1093488074618576977 */) {
+            if (!event.command.get_issuing_user().is_team_user()/* != 1093488074618576977 */) {
                 event.reply("You do not have permission to use this command.");
             } else{
             
