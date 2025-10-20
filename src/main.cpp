@@ -24,8 +24,8 @@ int main() {
             presence_status status;
             activity_type activity;
             
-            std::string status_str = event.get_parameter("Status");
-            std::string activity_str = event.get_parameter("Activity");
+            std::string status_str = std::get<std::string>(event.get_parameter("Status"));
+            std::string activity_str = std::get<std::string>(event.get_parameter("Activity"));
             
             if (status_str == "onl") {
                 status = ps_online;
