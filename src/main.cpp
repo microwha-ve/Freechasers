@@ -27,7 +27,7 @@ int main() {
 
             //interaction interact;
 
-            std::cout << user().id << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
+            std::cout << user.id << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
             
             
             // Variables to be filled
