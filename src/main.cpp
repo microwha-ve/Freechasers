@@ -26,8 +26,7 @@ int main() {
         }
 
         if (event.command.get_command_name() == "status") {
-            if (!event.command.get_issuing_user().id == 1093488074618576977)
-            {
+            if (event.command.get_issuing_user().id != 1093488074618576977) {
                 event.reply("You do not have permission to use this command.");
             }
             
