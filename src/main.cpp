@@ -38,7 +38,7 @@ int main() {
             }
             
             if (activity_str == "ply") {
-                activity = at_playing;
+                activity = at_game;
             } else if (activity_str == "listn") {
                 activity = at_listening;
             } else if (activity_str == "watch") {
