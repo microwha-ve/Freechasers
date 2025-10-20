@@ -6,6 +6,8 @@
 
 #include <dpp/appcommand.h> // D++ Commands, may or may not be needed idk yet
 
+#include <dpp/application.h> // D++ Application, may or may not be needed idk yet
+
 #include <cstdlib>          // Used for getenv();
 
 #include <format>           // Used for std::format
@@ -26,8 +28,8 @@ int main() {
         }
 
         if (event.command.get_command_name() == "status") {
-            if (!event.command.get_issuing_user().is_team_user()/* != 1093488074618576977 */) {
-                event.reply("You do not have permission to use this command.");
+            if (event.command.get_issuing_user().id != 1093488074618576977) {
+                event.cancel_event();
             } else{
             
             std::cout << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
