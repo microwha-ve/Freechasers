@@ -8,6 +8,8 @@
 
 #include <cstdlib>          // Used for getenv();
 
+#include <format>           // Used for std::format
+
 using namespace dpp;
 
 int main() {
@@ -59,7 +61,7 @@ int main() {
             bot.set_presence(presence(status, activity, "It Worked!"));
             
             // Replies so the user gets feedback.
-            event.reply("Status has been updated to " & status & " with activity " & activity & "!");
+            event.reply(std::format("Status set to {} and activity has been set to {}!", status, activity));
         }
     });
 
