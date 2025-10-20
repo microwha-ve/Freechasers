@@ -24,8 +24,8 @@ int main() {
             presence_status status;
             activity_type activity;
             
-            std::string status_str = std::get<std::string>(event.get_parameter("Status"));
-            std::string activity_str = std::get<std::string>(event.get_parameter("Activity"));
+            std::string status_str = std::get<std::string>(event.get_parameter("status"));
+            std::string activity_str = std::get<std::string>(event.get_parameter("activity"));
             
             if (status_str == "onl") {
                 status = ps_online;
@@ -68,13 +68,13 @@ int main() {
 
             slashcommand statusCommand("status", "Set bot status!", bot.me.id);
             statusCommand.add_option(
-                command_option(co_string, "Status", "Select a status", true)
+                command_option(co_string, "status", "Select a status", true)
                 .add_choice(command_option_choice("Online", std::string("onl")))
                 .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
                 .add_choice(command_option_choice("Idle", std::string("idle")))
             );
             statusCommand.add_option(
-                command_option(co_string, "Activity", "Select an activity for the status", true)
+                command_option(co_string, "activity", "Select an activity for the status", true)
                 .add_choice(command_option_choice("Playing", std::string("ply")))
                 .add_choice(command_option_choice("Listening", std::string("listn")))
                 .add_choice(command_option_choice("Watching", std::string("watch")))
