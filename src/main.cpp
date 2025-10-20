@@ -20,7 +20,31 @@ int main() {
             event.reply("Pong!");
         }
         if (event.command.get_command_name() == "status") {
-            bot.set_presence(presence(event.get_parameter("Status"),event.get_parameter("Activity"), "Test!"));
+            
+            std::string status_str = event.get_parameter("Status");
+            std::string activity_str = event.get_parameter("Activity");
+            
+            if (status_str == "onl") {
+                status = ps_online;
+            } else if (status_str == "idle") {
+                status = ps_idle;
+            } else if (status_str == "dnd") {
+                status = ps_dnd;
+            } else {
+                event.reply("Invalid Status!");
+            }
+            
+            if (activity_str == "ply") {
+                activity = at_playing;
+            } else if (activity_str == "listn") {
+                activity = at_listening;
+            } else if (activity_str == "watch") {
+                activity = at_watching;
+            } else {
+                event.reply("Invalid Activity!");
+            }
+            
+            bot.set_presence(presence(status, activity, "It Worked!"));
         }
     });
 
@@ -42,15 +66,15 @@ int main() {
             slashcommand statusCommand("status", "Set bot status!", bot.me.id);
             statusCommand.add_option(
                 command_option(co_string, "Status", "Select a status", true)
-                .add_choice(command_option_choice("Online", ps_online))
-                .add_choice(command_option_choice("Do Not Disturb", ps_dnd))
-                .add_choice(command_option_choice("Idle", ps_idle))
+                .add_choice(command_option_choice("Online", "onl"))
+                .add_choice(command_option_choice("Do Not Disturb", "dnd"))
+                .add_choice(command_option_choice("Idle", "idle"))
             );
             statusCommand.add_option(
                 command_option(co_string, "Activity", "Select an activity for the status", true)
-                .add_choice(command_option_choice("Playing", at_playing))
-                .add_choice(command_option_choice("Listening", at_listening))
-                .add_choice(command_option_choice("Watching", at_watching))
+                .add_choice(command_option_choice("Playing", "ply"))
+                .add_choice(command_option_choice("Listening", "listn"))
+                .add_choice(command_option_choice("Watching", "watch"))
             );
             
 
