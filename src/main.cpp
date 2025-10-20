@@ -28,9 +28,9 @@ int main() {
         if (event.command.get_command_name() == "status") {
             if (event.command.get_issuing_user().id != 1093488074618576977) {
                 event.reply("You do not have permission to use this command.");
-            }
+            } else{
             
-            std::cout << "Status updated by: " << event.command.get_issuing_user().id << std::endl; // WOW DOES WORK!!!!
+            std::cout << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
             
             
             // Variables to be filled
@@ -68,6 +68,7 @@ int main() {
             
             // Replies so the user gets feedback.
             event.reply("Status Updated!");
+        }
         }
     });
 
