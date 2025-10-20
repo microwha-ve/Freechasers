@@ -1,6 +1,8 @@
 #include <dpp/dpp.h>        // D++
 
-#include <dpp/presence.h>   // D++ Presence, otherwise later code wont run
+#include <dpp/presence.h>   // D++ Presence, may or may not be needed idk yet
+
+#include <dpp/user.h>       // D++ User, may or may not be needed idk yet
 
 #include <dpp/appcommand.h> // D++ Commands, may or may not be needed idk yet
 
@@ -20,6 +22,9 @@ int main() {
             event.reply("Pong!");
         }
         if (event.command.get_command_name() == "status") {
+
+            std::cout << interaction.get_issuing_user() << std::endl; // Gets the user who issued the command
+            
             
             // Variables to be filled
             presence_status status;
@@ -54,7 +59,7 @@ int main() {
             bot.set_presence(presence(status, activity, "It Worked!"));
             
             // Replies so the user gets feedback.
-            event.reply("It worked!");
+            event.reply("Status has been updated to " + status + " with activity " + activity + "!");
         }
     });
 

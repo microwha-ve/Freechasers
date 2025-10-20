@@ -36,3 +36,4 @@ build/
 
 # Secret stuvv
 *.env
+*.vscode
