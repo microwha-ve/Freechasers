@@ -27,7 +27,7 @@ int main() {
 
             interaction interact;
 
-            std::cout << interact.get_issuing_user().global_name << std::endl; // Gets the user who issued the command
+            std::cout << interact.get_issuing_user().global_name << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
             
             
             // Variables to be filled
