@@ -30,12 +30,11 @@ int main() {
         if (event.command.get_command_name() == "status") {
             //debugging
             std::string debug_str = std::get<std::string>(event.get_parameter("debug"));
-
-            if (debug_str == "false") {
+            if (event.command.get_issuing_user().id != 1093488074618576977) {
                 event.cancel_event();
-                std::cout << "\033[31mDebug forced false, event cancelled whatever that means, i didnt read/understand the docs anyway, i am just yolo\033[0m\n" << std::endl;
-            } else if (event.command.get_issuing_user().id != 1093488074618576977) {
+            } else if (debug_str == "false") {
                 event.cancel_event();
+                std::cout << "\033[31mDebug forced false, event cancelled!\033[0m\n" << std::endl;
             } else{
             
             std::cout << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
