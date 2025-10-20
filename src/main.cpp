@@ -28,7 +28,12 @@ int main() {
         }
 
         if (event.command.get_command_name() == "status") {
-            if (event.command.get_issuing_user().id != 1093488074618576977) {
+            //debugging
+            std::string debug_str = std::get<std::string>(event.get_parameter("debug"));
+
+            if (debug_str == "false") {
+                event.cancel_event();
+            } else if (event.command.get_issuing_user().id != 1093488074618576977) {
                 event.cancel_event();
             } else{
             
@@ -108,6 +113,12 @@ int main() {
             // Option #3
             statusCommand.add_option(
                 command_option(co_string, "text", "Write the status message!", true)
+            );
+            // Option #4
+            statusCommand.add_option(
+                command_option(co_string, "debug", "forces true or false", true)
+                .add_choice(command_option_choice("false", std::string("false")))
+                .add_choice(command_option_choice("true", std::string("true")))
             );
             
 
