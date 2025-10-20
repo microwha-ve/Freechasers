@@ -25,9 +25,9 @@ int main() {
         }
         if (event.command.get_command_name() == "status") {
 
-            interaction interact;
+            //interaction interact;
 
-            std::cout << interact.get_issuing_user().global_name << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
+            std::cout << event.get_issuing_user().username << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
             
             
             // Variables to be filled
