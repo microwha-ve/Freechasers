@@ -59,7 +59,7 @@ int main() {
             bot.set_presence(presence(status, activity, "It Worked!"));
             
             // Replies so the user gets feedback.
-            event.reply("Status has been updated to " + status + " with activity " + activity + "!");
+            event.reply("Status has been updated to " & status & " with activity " & activity & "!");
         }
     });
 
