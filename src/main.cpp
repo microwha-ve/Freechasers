@@ -25,9 +25,7 @@ int main() {
         }
         if (event.command.get_command_name() == "status") {
 
-            //interaction interact;
-
-            std::cout << user.id << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
+            std::cout << "Status updated by: " << event.command.get_issuing_user().id << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
             
             
             // Variables to be filled
