@@ -20,12 +20,18 @@ int main() {
 
     // Defines what the commands will do
     bot.on_slashcommand([ & bot](const slashcommand_t & event) {
+
         if (event.command.get_command_name() == "ping") {
             event.reply("Pong!");
         }
-        if (event.command.get_command_name() == "status") {
 
-            std::cout << "Status updated by: " << event.command.get_issuing_user().id << std::endl; // Gets the user who issued the command (DOESNT WORK YET)
+        if (event.command.get_command_name() == "status") {
+            if (!event.command.get_issuing_user().id == 1093488074618576977)
+            {
+                event.reply("You do not have permission to use this command.");
+            }
+            
+            std::cout << "Status updated by: " << event.command.get_issuing_user().id << std::endl; // WOW DOES WORK!!!!
             
             
             // Variables to be filled
@@ -68,6 +74,7 @@ int main() {
 
     // Things that run when the bot is connected to discord api
     bot.on_ready([ & bot](const ready_t & event) {
+
         std::cout << "Logged in as " << bot.me.username << "!" << std::endl;
 
         // Sets activity, ps_dnd = Do Not Disturb, "bhop_arcane" is the text status, at_competing = is like the sub thingy, like listening, watching, playing etc etc
