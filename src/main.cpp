@@ -25,7 +25,9 @@ int main() {
         }
         if (event.command.get_command_name() == "status") {
 
-            std::cout << interaction::get_issuing_user() << std::endl; // Gets the user who issued the command
+            interaction interact;
+
+            std::cout << interact.get_issuing_user() << std::endl; // Gets the user who issued the command
             
             
             // Variables to be filled
