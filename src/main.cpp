@@ -15,7 +15,7 @@ int main() {
     bot.on_log(utility::cout_logger()); // D++ own logger
 
     // Defines what the commands will do
-    bot.on_slashcommand([](const slashcommand_t & event) {
+    bot.on_slashcommand([ & bot](const slashcommand_t & event) {
         if (event.command.get_command_name() == "ping") {
             event.reply("Pong!");
         }
@@ -41,13 +41,13 @@ int main() {
 
             slashcommand statusCommand("status", "Set bot status!", bot.me.id);
             statusCommand.add_option(
-                command_opertion(co_string, "Status", "Select a status", true)
+                command_option(co_string, "Status", "Select a status", true)
                 .add_choice(command_option_choice("Online", ps_online))
                 .add_choice(command_option_choice("Do Not Disturb", ps_dnd))
                 .add_choice(command_option_choice("Idle", ps_idle))
             );
             statusCommand.add_option(
-                command_opertion(co_string, "Activity", "Select an activity for the status", true)
+                command_option(co_string, "Activity", "Select an activity for the status", true)
                 .add_choice(command_option_choice("Playing", at_playing))
                 .add_choice(command_option_choice("Listening", at_listening))
                 .add_choice(command_option_choice("Watching", at_watching))
