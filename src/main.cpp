@@ -27,7 +27,7 @@ int main() {
 
             interaction interact;
 
-            std::cout << interact.get_issuing_user() << std::endl; // Gets the user who issued the command
+            std::cout << interact.get_issuing_user().id << std::endl; // Gets the user who issued the command
             
             
             // Variables to be filled
@@ -37,6 +37,7 @@ int main() {
             // Variables to compare then fill the previous variables
             std::string status_str = std::get<std::string>(event.get_parameter("status"));
             std::string activity_str = std::get<std::string>(event.get_parameter("activity"));
+            std::string text_str = std::get<std::string>(event.get_parameter("text"));
             
             // Filling variables
             if (status_str == "onl") {
@@ -60,10 +61,10 @@ int main() {
             }
             
             // Setting the status
-            bot.set_presence(presence(status, activity, "It Worked!"));
+            bot.set_presence(presence(status, activity, text_str));
             
             // Replies so the user gets feedback.
-            event.reply(std::format("Status set to {} and activity has been set to {}!", status, activity));
+            event.reply("Status Updated!");
         }
     });
 
