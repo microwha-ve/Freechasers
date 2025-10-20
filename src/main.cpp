@@ -48,6 +48,8 @@ int main() {
             }
             
             bot.set_presence(presence(status, activity, "It Worked!"));
+            
+            event.reply("It worked!")
         }
     });
 
@@ -78,6 +80,9 @@ int main() {
                 .add_choice(command_option_choice("Playing", std::string("ply")))
                 .add_choice(command_option_choice("Listening", std::string("listn")))
                 .add_choice(command_option_choice("Watching", std::string("watch")))
+            );
+            statusCommand.add_option(
+                command_option(co_string, "text", "Write the status message!", true)
             );
             
 
