@@ -82,7 +82,7 @@ int main() {
             
 
             std::cout << "Registering slash commands..." << std::endl;
-            bot.global_builk_command_create({
+            bot.global_bulk_command_create({
                 pingCommand,
                 statusCommand
             });
