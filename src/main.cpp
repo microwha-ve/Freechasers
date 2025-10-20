@@ -66,15 +66,15 @@ int main() {
             slashcommand statusCommand("status", "Set bot status!", bot.me.id);
             statusCommand.add_option(
                 command_option(co_string, "Status", "Select a status", true)
-                .add_choice(command_option_choice("Online", "onl"))
-                .add_choice(command_option_choice("Do Not Disturb", "dnd"))
-                .add_choice(command_option_choice("Idle", "idle"))
+                .add_choice(command_option_choice("Online", std::string("onl")))
+                .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
+                .add_choice(command_option_choice("Idle", std::string("idle")))
             );
             statusCommand.add_option(
                 command_option(co_string, "Activity", "Select an activity for the status", true)
-                .add_choice(command_option_choice("Playing", "ply"))
-                .add_choice(command_option_choice("Listening", "listn"))
-                .add_choice(command_option_choice("Watching", "watch"))
+                .add_choice(command_option_choice("Playing", std::string("ply")))
+                .add_choice(command_option_choice("Listening", std::string("listn")))
+                .add_choice(command_option_choice("Watching", std::string("watch")))
             );
             
 
