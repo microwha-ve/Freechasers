@@ -90,6 +90,7 @@ int main() {
             std::string servers     = std::to_string(event.command.get_issuing_user().refcount);
             
             event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created /*+ "\n Your primary server/tag is: " + tag */+ "\n You are in: " + servers + " servers!");
+            std::cout << event.command.get_issuing_user().get_creation_time() << std::endl;
         }
     });
 
