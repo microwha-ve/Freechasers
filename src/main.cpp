@@ -79,7 +79,15 @@ int main() {
         }
         
         if (event.command.get_command_name() == "whoami") {
-            event.reply("Your username is: " + event.command.get_issuing_user().username + "\n Your screenname is: " + event.command.get_issuing_user().global_name + "\n Your discord ID is: " + event.command.get_issuing_user().id.str());
+            
+            std::string username    = event.command.get_issuing_user().username;
+            std::string screenname  = event.command.get_issuing_user().global_name;
+            std::string id          = event.command.get_issuing_user().id.str();
+            std::string created     = event.command.get_issuing_user().get_creation_time();
+            std::string tag         = event.command.get_issuing_user().primary_guild;
+            std::string servers     = event.command.get_issuing_user().refcount;
+            
+            event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created + "\ Your primary server/tag is: " + tag + "\ You are in: " + servers + " servers!");
         }
     });
 
