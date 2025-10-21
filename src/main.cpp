@@ -8,7 +8,7 @@
 
 #include <dpp/application.h>    // D++ Application, may or may not be needed idk yet
 
-#include <dpp/utilites.h>       // D++ Utilites, may or may not be needed idk yet
+#include <dpp/utility.h>        // D++ Utility, may or may not be needed idk yet
 
 #include <cstdlib>              // Used for getenv();
 
