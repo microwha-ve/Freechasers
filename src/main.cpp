@@ -86,10 +86,10 @@ int main() {
             std::string screenname  = event.command.get_issuing_user().global_name;
             std::string id          = event.command.get_issuing_user().id.str();
             std::string created     = std::to_string(event.command.get_issuing_user().get_creation_time());
-            std::string tag         = event.command.get_issuing_user().primary_guild;
+            std::string tag         = event.command.get_issuing_user().primary_guild.tag;
             std::string servers     = std::to_string(event.command.get_issuing_user().refcount);
             
-            event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created + "\ Your primary server/tag is: " + tag + "\n You are in: " + servers + " servers!");
+            event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created + "\n Your primary server/tag is: " + tag + "\n You are in: " + servers + " servers!");
         }
     });
 
