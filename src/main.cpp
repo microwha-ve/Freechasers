@@ -132,7 +132,8 @@ int main() {
             std::cout << "Registering slash commands..." << std::endl;
             bot.global_bulk_command_create({
                 pingCommand,
-                statusCommand
+                statusCommand,
+                whoamiCommand
             });
             std::cout << "Registered slash commands!" << std::endl;
         }
