@@ -85,7 +85,7 @@ int main() {
             std::string username    = event.command.get_issuing_user().username;
             std::string screenname  = event.command.get_issuing_user().global_name;
             std::string id          = event.command.get_issuing_user().id.str();
-            std::string created     = std::to_string(event.command.get_issuing_user().get_creation_time());
+            std::string created     = std::to_string(event.command.get_issuing_user().id.get_creation_time());
             //std::string tag         = event.command.get_issuing_user().primary_guild.tag; //Doesnt work for some reason
             std::string servers     = std::to_string(event.command.get_issuing_user().refcount);
             
