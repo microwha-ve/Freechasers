@@ -1,16 +1,18 @@
-#include <dpp/dpp.h>        // D++
+#include <dpp/dpp.h>            // D++
 
-#include <dpp/presence.h>   // D++ Presence, may or may not be needed idk yet
+#include <dpp/presence.h>       // D++ Presence, may or may not be needed idk yet
 
-#include <dpp/user.h>       // D++ User, may or may not be needed idk yet
+#include <dpp/user.h>           // D++ User, may or may not be needed idk yet
 
-#include <dpp/appcommand.h> // D++ Commands, may or may not be needed idk yet
+#include <dpp/appcommand.h>     // D++ Commands, may or may not be needed idk yet
 
-#include <dpp/application.h> // D++ Application, may or may not be needed idk yet
+#include <dpp/application.h>    // D++ Application, may or may not be needed idk yet
 
-#include <cstdlib>          // Used for getenv();
+#include <dpp/utilites.h>       // D++ Utilites, may or may not be needed idk yet
 
-#include <format>           // Used for std::format
+#include <cstdlib>              // Used for getenv();
+
+#include <format>               // Used for std::format
 
 using namespace dpp;
 
@@ -83,11 +85,11 @@ int main() {
             std::string username    = event.command.get_issuing_user().username;
             std::string screenname  = event.command.get_issuing_user().global_name;
             std::string id          = event.command.get_issuing_user().id.str();
-            std::string created     = event.command.get_issuing_user().get_creation_time();
+            std::string created     = std::to_string(event.command.get_issuing_user().get_creation_time());
             std::string tag         = event.command.get_issuing_user().primary_guild;
-            std::string servers     = event.command.get_issuing_user().refcount;
+            std::string servers     = std::to_string(event.command.get_issuing_user().refcount);
             
-            event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created + "\ Your primary server/tag is: " + tag + "\ You are in: " + servers + " servers!");
+            event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created + "\ Your primary server/tag is: " + tag + "\n You are in: " + servers + " servers!");
         }
     });
 
