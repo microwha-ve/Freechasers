@@ -79,7 +79,7 @@ int main() {
         }
         
         if (event.command.get_command_name() == "whoami") {
-            event.reply("Your username is: " + event.command.get_issuing_user().username + "\n Your screenname is: " + event.command.get_issuing_user().global_name + "\n Your discord ID is: " + event.command.get_issuing_user().id);
+            event.reply("Your username is: " + event.command.get_issuing_user().username + "\n Your screenname is: " + event.command.get_issuing_user().global_name + "\n Your discord ID is: " + event.command.get_issuing_user().id.str());
         }
     });
 
