@@ -22,6 +22,8 @@ int main() {
 
     // Defines what the commands will do
     bot.on_slashcommand([ & bot](const slashcommand_t & event) {
+        
+        User = event.command.get_issuing_user();
 
         if (event.command.get_command_name() == "ping") {
             event.reply("Pong!");
@@ -30,14 +32,14 @@ int main() {
         if (event.command.get_command_name() == "status") {
             //debugging
             std::string debug_str = std::get<std::string>(event.get_parameter("debug"));
-            if (event.command.get_issuing_user().id != 1093488074618576977) {
+            if (User.id != 1093488074618576977) {
                 event.cancel_event();
             } else if (debug_str == "false") {
                 event.cancel_event();
                 std::cout << "\033[31mDebug forced false, event cancelled!\033[0m\n" << std::endl;
             } else{
             
-            std::cout << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
+            std::cout << "\033[33mStatus updated by: " << User.id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
             
             
             // Variables to be filled
@@ -79,7 +81,7 @@ int main() {
         }
         
         if (event.command.get_command_name() == "whoami") {
-            event.reply("Your username is: " + event.command.get_issuing_user().username);
+            event.reply("Your username is: " + User.username + "\n Your screenname is: " + );
         }
     });
 
