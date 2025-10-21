@@ -77,6 +77,10 @@ int main() {
             event.reply("Status Updated!");
         }
         }
+        
+        if (event.command.get_command_name() == "whoami") {
+            event.reply("Your username is: ", event.command.get_issuing_user().username);
+        }
     });
 
     // Things that run when the bot is connected to discord api
@@ -94,9 +98,12 @@ int main() {
         if (run_once < struct register_bot_commands > ()) {
 
             slashcommand pingCommand("ping", "Pong!", bot.me.id);
-
-            // Option #1
+            
+            slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
+            
             slashcommand statusCommand("status", "Set bot status!", bot.me.id);
+            
+            // Option #1
             statusCommand.add_option(
                 command_option(co_string, "status", "Select a status", true) // I have no idea what 'true' does here
                 .add_choice(command_option_choice("Online", std::string("onl")))
