@@ -79,7 +79,7 @@ int main() {
         }
         
         if (event.command.get_command_name() == "whoami") {
-            event.reply("Your username is: ", event.command.get_issuing_user().username);
+            event.reply("Your username is: " + event.command.get_issuing_user().username);
         }
     });
 
