@@ -115,20 +115,19 @@ int main() {
           snowflake guildID = event.command.guild_id;
           snowflake userID = std::get < snowflake > (event.get_parameter("userBan"));
           std::string banReason = std::get < std::string > (event.get_parameter("reasonBan"));
-          std::optional<int> days = std::get < std::optional<int> > (event.get_parameter("deleteMessages"));
+          int days = std::get < int > (event.get_parameter("deleteMessages"));
           
           if (days > 7 || days < 0) {
               event.reply("Err! Mein Fräulein wants you enter a number between 0 and 7 or none at all, not higher, not lower.");
               return;
-          } else if (!days.has_value()) {
-              days = 0;
           }
           
-          uint32_t daysToDelete = days.value_or(0);
-          bot.guild_ban_add(guildID, userID, daysToDelete, [userID, banReason](const confirmation_callback_t & cc){
+          // Ban the user
+          bot.set_audit_reason(banReason);
+          bot.guild_ban_add(guildID, userID, days, [userID, banReason](const confirmation_callback_t & cc) {
               if(cc.is_error()) {
                   std::cerr << "Failed to ban user " << userID << "! Err: " << cc.error.message << std::endl;
-                  event.reply("Failed to ban user, please consult with mein Fräulein for the error, or view the console.");
+                  event.reply("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
                   return;
               }
               std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
@@ -218,7 +217,7 @@ int main() {
       );
       // banOption #2
       banCommand.add_option(
-        command_option(co_integer, "deleteMessages", "Delete the users messages for the past X days (at most 7 days), this option is not required", false)
+        command_option(co_integer, "deleteMessages", "Delete the users messages for the past X days (at most 7 days), if unsure enter 0", true)
       );
         
       std::cout << "Registering slash commands..." << std::endl;
