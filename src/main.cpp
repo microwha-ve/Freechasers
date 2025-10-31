@@ -131,8 +131,8 @@ int main() {
                   return;
               }
               std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
+              event.reply("User has been banned!");
           });
-          event.reply("User has been banned!");
       }
       
   });
