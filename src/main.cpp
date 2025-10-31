@@ -23,7 +23,7 @@ int main() {
   bot.on_log(utility::cout_logger()); // D++ own logger
 
   // Defines what the commands will do
-  bot.on_slashcommand([ & bot](const slashcommand_t & event) {
+  bot.on_slashcommand([ & bot, & dev_team ](const slashcommand_t & event) {
 
     if (event.command.get_command_name() == "ping") {
       event.reply("Pong!");
