@@ -113,28 +113,91 @@ int main() {
           }
           
           snowflake guildID = event.command.guild_id;
-          snowflake userID = std::get < snowflake > (event.get_parameter("userban"));
-          std::string banReason = std::get < std::string > (event.get_parameter("reasonban"));
+          snowflake userID = std::get<snowflake>(event.get_parameter("userid"));
+          std::string banReason = std::get<std::string>(event.get_parameter("reason"));
           long int days = std::get<long int>(event.get_parameter("deletemessages"));
 
-          if (days > 7 || days < 0) {
-              event.reply("Err! Mein Fräulein wants you enter a number between 0 and 7 or none at all, not higher, not lower.");
+          if (days < 0 || days > 7) {
+              event.reply("The span of memory deletion must be between 0 and 7 days. Nothing more, nothing less.");
+              return;
+          }
+
+          event.thinking();
+
+          bot.set_audit_reason(banReason);
+
+          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const dpp::confirmation_callback_t & cc) mutable {
+                  if(cc.is_error()) {
+                      event.edit_response("The attempt has failed. The one in question remains unscathed.");
+                      std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
+                      return;
+                  }
+
+                  std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
+                  event.edit_response("The deed is done. The user has been removed.");
+              }
+          );
+      }
+      
+      
+      if (event.command.get_command_name() == "timeout") {
+          if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
+              event.reply("Mein Fräulein has not given you permission to issue me that order.");
               return;
           }
           
-          // Ban the user
-          event.thinking(); // timeout issues when the ban doesnt go through, so telling discord to take a chill pill
-          bot.set_audit_reason(banReason);
-          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const dpp::confirmation_callback_t & cc) mutable {
-              if(cc.is_error()) {
-                  event.edit_response("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
-                  std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
-                  return;
-              }
-              std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
-              event.edit_response("User has been banned!");
-          });
-      }
+          snowflake guildID = event.command.guild_id;
+          snowflake userID = std::get<snowflake>(event.get_parameter("userid"));
+          std::string reason = std::get<std::string>(event.get_parameter("reason"));
+          long int minutes = std::get<long int>(event.get_parameter("time"));
+
+          if (minutes < 1 || minutes > 10080) {
+              event.reply("The time frame specified is illogical. Limit it between 1 minute and 7 days.");
+              return;
+          }
+
+          snowflake timeout_role_id = 123456789012345678; // replace with your role ID
+          snowflake log_channel_id = 123456789012345678; //replace with your channel ID
+
+          event.thinking();
+
+          bot.guild_member_add_role(guildID, userID, timeout_role_id, reason,
+              [event, &bot, guildID, userID, timeout_role_id, minutes, reason](const dpp::confirmation_callback_t & cc) mutable {
+                  if (cc.is_error()) {
+                      std::cerr << "Failed to add timeout role to user " << userID << "! Err: " << cc.get_error().message << std::endl;
+                      event.edit_response("Attempt to restrain the subject failed. The role remains untouched.");
+                      return;
+                  }
+
+                  uint64_t duration_ms = static_cast<uint64_t>(minutes) * 60 * 1000;
+                  bot.guild_member_timeout(guildID, userID, duration_ms, reason,
+                      [event, &bot, guildID, userID, timeout_role_id, minutes, reason](const dpp::confirmation_callback_t & cc2) mutable {
+                          if (cc2.is_error()) {
+                              event.edit_response("The role is applied, yet the timeout faltered. The subject remains partially free.");
+                              std::cerr << "Failed to timeout user " << userID << "! Err: " << cc2.get_error().message << std::endl;
+                              return;
+                          }
+                      
+                      // Complete the interaction immediately
+                      event.edit_response("Timeout applied successfully.");
+
+                      // Send a normal message to the specified channel, pinging the user
+                      std::string msg = "<@" + userID.str() + "> has been confined for " + std::to_string(minutes) + " minutes";
+                      if (!reason.empty())
+                          msg += ". Reason: " + reason;
+
+                      bot.message_create(dpp::message(log_channel_id, msg));
+
+                      // Schedule role removal
+                      std::thread([&bot, guildID, userID, timeout_role_id, minutes]() {
+                          std::this_thread::sleep_for(std::chrono::minutes(minutes));
+                          bot.guild_member_remove_role(guildID, userID, timeout_role_id, "The confinement has ended.");
+                      }).detach();
+                  }
+              );
+          }
+      );
+  }
       
   });
     
@@ -188,6 +251,8 @@ int main() {
       slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
         
       slashcommand banCommand("ban", "Ban a user", bot.me.id);
+        
+      slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
 
       // statusOption #1
       statusCommand.add_option(
@@ -210,15 +275,27 @@ int main() {
         
       // banOption #1
       banCommand.add_option(
-        command_option(co_user, "userban", "Select a user to be banned", true)
+        command_option(co_user, "userid", "Select a user to be banned", true)
       );
       // banOption #2
       banCommand.add_option(
-        command_option(co_string, "reasonban", "Write a ban reason", true)
+        command_option(co_string, "reason", "Write a ban reason", true)
       );
-      // banOption #2
+      // banOption #3
       banCommand.add_option(
         command_option(co_integer, "deletemessages", "Delete the users messages for the past X days (at most 7 days), if unsure enter 0", true)
+      );
+      // timoutOption #1
+      timeoutCommand.add_option(
+        command_option(co_user, "userid", "Who did the oopsie?", true)
+      );
+      // timoutOption #2
+      timeoutCommand.add_option(
+        command_option(co_string, "reason", "Reasoning for the timeout", true)
+      );
+      // timoutOption #3
+      timeoutCommand.add_option(
+        command_option(co_integer, "time", "Time in minutes", true)
       );
         
       std::cout << "Registering slash commands..." << std::endl;
@@ -226,7 +303,8 @@ int main() {
         pingCommand,
         statusCommand,
         whoamiCommand,
-        banCommand
+        banCommand,
+        timeoutCommand
       });
         
         
