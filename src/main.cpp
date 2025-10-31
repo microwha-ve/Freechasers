@@ -113,9 +113,9 @@ int main() {
           }
           
           snowflake guildID = event.command.guild_id;
-          snowflake userID = std::get < snowflake > (event.get_parameter("userBan"));
-          std::string banReason = std::get < std::string > (event.get_parameter("reasonBan"));
-          long int days = std::get<long int>(event.get_parameter("deleteMessages"));
+          snowflake userID = std::get < snowflake > (event.get_parameter("userban"));
+          std::string banReason = std::get < std::string > (event.get_parameter("reasonban"));
+          long int days = std::get<long int>(event.get_parameter("deletemessages"));
 
           if (days > 7 || days < 0) {
               event.reply("Err! Mein Fräulein wants you enter a number between 0 and 7 or none at all, not higher, not lower.");
@@ -209,15 +209,15 @@ int main() {
         
       // banOption #1
       banCommand.add_option(
-        command_option(co_user, "userBan", "Select a user to be banned", true)
+        command_option(co_user, "userban", "Select a user to be banned", true)
       );
       // banOption #2
       banCommand.add_option(
-        command_option(co_string, "reasonBan", "Write a ban reason", true)
+        command_option(co_string, "reasonban", "Write a ban reason", true)
       );
       // banOption #2
       banCommand.add_option(
-        command_option(co_integer, "deleteMessages", "Delete the users messages for the past X days (at most 7 days), if unsure enter 0", true)
+        command_option(co_integer, "deletemessages", "Delete the users messages for the past X days (at most 7 days), if unsure enter 0", true)
       );
         
       std::cout << "Registering slash commands..." << std::endl;
