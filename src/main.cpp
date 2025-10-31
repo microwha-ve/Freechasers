@@ -149,12 +149,6 @@ int main() {
       statusCommand.add_option(
         command_option(co_string, "text", "Write the status message!", true)
       );
-      // Option #4
-      statusCommand.add_option(
-        command_option(co_string, "debug", "forces true or false", true)
-        .add_choice(command_option_choice("false", std::string("false")))
-        .add_choice(command_option_choice("true", std::string("true")))
-      );
 
       std::cout << "Registering slash commands..." << std::endl;
       bot.global_bulk_command_create({
