@@ -24,6 +24,19 @@ int main() {
   
   std::unordered_set < snowflake > dev_team;
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
   // Defines what the commands will do
   bot.on_slashcommand([ & bot, & dev_team ](const slashcommand_t & event) {
 
@@ -36,7 +49,7 @@ int main() {
       //new perms check to be implemented
 
         if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
-            event.reply("My Fräulein has not given you permission to issue me that order.");
+            event.reply("Mein Fräulein has not given you permission to issue me that order.");
             return;
         }
 
@@ -74,7 +87,7 @@ int main() {
         
       // Setting the status
       bot.set_presence(presence(status, activity, text_str));
-      std::cerr << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
+      std::cout << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
 
       // Replies so the user gets feedback.
       event.reply("Status Updated!");
@@ -92,7 +105,51 @@ int main() {
       event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created /*+ "\n Your primary server/tag is: " + tag */ + "\n You are in: " + servers + " servers!");
       std::cout << event.command.get_issuing_user().get_creation_time() << std::endl;
     }
+      
+      if (event.command.get_command_name() == "ban") {
+          if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
+              event.reply("Mein Fräulein has not given you permission to issue me that order.");
+              return;
+          }
+          
+          snowflake guildID = event.command.guild_id;
+          snowflake userID = std::get < snowflake > (event.get_parameter("userBan"));
+          std::string banReason = std::get < std::string > (event.get_parameter("reasonBan"));
+          int days = std::get < int > (event.get_parameter("deleteMessages"));
+          
+          if (days > 7 || days < 0) {
+              event.reply("Err! Mein Fräulein wants you enter a number between 0 and 7 or none at all, not higher, not lower.");
+              return;
+          } else if (!days.has_value()) {
+              days = 0;
+          }
+          
+          bot.guild_ban_add(guildID, userID, days, banReason, [userID](const confirmation_callback_t & cc) {
+              if(cc.is_error()) {
+                  std::cerr << "Failed to ban user " << userID << "! Err: " << cc.error.message << std::endl;
+                  event.reply("Failed to ban user, please consult with mein Fräulein for the error, or view the console.");
+                  return;
+              } else {
+                  std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
+              }
+          });
+          
+          event.reply("User has been banned!");
+      }
+      
   });
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
   // Things that run when the bot is connected to discord api
   bot.on_ready([ & bot, & dev_team ](const ready_t & event) {
@@ -111,7 +168,7 @@ int main() {
       auto app = std::get < application > (cc.value);
       for (auto & member: app.team.members) {
         dev_team.insert(member.member_user.id);
-        std::cerr << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
+        std::cout << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
       }
         std::cout << "Dev Team members loaded!" << std::endl;
     });
@@ -127,35 +184,64 @@ int main() {
 
       slashcommand pingCommand("ping", "Pong!", bot.me.id);
 
-      slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
-
       slashcommand statusCommand("status", "Set bot status!", bot.me.id);
+        
+      slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
+        
+      slashcommand banCommand("ban", "Ban a user", bot.me.id);
 
-      // Option #1
+      // statusOption #1
       statusCommand.add_option(
-        command_option(co_string, "status", "Select a status", true) // I have no idea what 'true' does here
+        command_option(co_string, "status", "Select a status", true) // 'true' makes the option required
         .add_choice(command_option_choice("Online", std::string("onl")))
         .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
         .add_choice(command_option_choice("Idle", std::string("idle")))
       );
-      // Option #2
+      // statusOption #2
       statusCommand.add_option(
         command_option(co_string, "activity", "Select an activity for the status", true)
         .add_choice(command_option_choice("Playing", std::string("ply")))
         .add_choice(command_option_choice("Listening", std::string("listn")))
         .add_choice(command_option_choice("Watching", std::string("watch")))
       );
-      // Option #3
+      // statusOption #3
       statusCommand.add_option(
         command_option(co_string, "text", "Write the status message!", true)
       );
-
+        
+      // banOption #1
+      banCommand.add_option(
+        command_option(co_user, "userBan", "Select a user to be banned", true)
+      );
+      // banOption #2
+      banCommand.add_option(
+        command_option(co_string, "reasonBan", "Write a ban reason", true)
+      );
+      // banOption #2
+      banCommand.add_option(
+        command_option(co_integer, "deleteMessages", "Delete the users messages for the past X days (at most 7 days), this option is not required", false)
+      );
+        
       std::cout << "Registering slash commands..." << std::endl;
       bot.global_bulk_command_create({
         pingCommand,
         statusCommand,
         whoamiCommand
       });
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
       std::cout << "Registered slash commands!" << std::endl;
     }
   });
