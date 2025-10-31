@@ -127,12 +127,12 @@ int main() {
           bot.set_audit_reason(banReason);
           bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const dpp::confirmation_callback_t & cc) mutable {
               if(cc.is_error()) {
-                  event.reply("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
+                  event.edit_response("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
                   std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
                   return;
               }
               std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
-              event.reply("User has been banned!");
+              event.edit_response("User has been banned!");
           });
       }
       
