@@ -21,7 +21,9 @@ int main() {
   cluster bot(std::getenv("token")); // Sets token
 
   bot.on_log(utility::cout_logger()); // D++ own logger
-
+  
+  std::unordered_set < snowflake > dev_team;
+    
   // Defines what the commands will do
   bot.on_slashcommand([ & bot, & dev_team ](const slashcommand_t & event) {
 
@@ -99,7 +101,6 @@ int main() {
 
     // Load developer team member IDs
     std::cout << "Loading Dev Team members..." << std::endl;
-    std::unordered_set < snowflake > dev_team;
       
     bot.current_application_get([ & ](const confirmation_callback_t & cc) {
       if (cc.is_error()) {
