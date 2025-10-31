@@ -175,7 +175,7 @@ int main() {
                   if (!reason.empty())
                     msg += ". Reason: " + reason;
 
-                  bot.message_create(dpp::message(log_channel_id, msg));
+                  bot.message_create(message(log_channel_id, msg));
 
                   // Schedule role removal
                   std::thread([ & bot, guildID, userID, timeout_role_id, minutes]() {
@@ -187,7 +187,7 @@ int main() {
             }
           );
         };
-      }
+    });
       // Things that run when the bot is connected to discord api
       bot.on_ready([ & bot, & dev_team](const ready_t & event) {
 
