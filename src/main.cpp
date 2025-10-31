@@ -224,7 +224,8 @@ int main() {
       bot.global_bulk_command_create({
         pingCommand,
         statusCommand,
-        whoamiCommand
+        whoamiCommand,
+        banCommand
       });
         
         
