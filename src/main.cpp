@@ -115,7 +115,7 @@ int main() {
           snowflake guildID = event.command.guild_id;
           snowflake userID = std::get < snowflake > (event.get_parameter("userBan"));
           std::string banReason = std::get < std::string > (event.get_parameter("reasonBan"));
-          int days = std::get < int > (event.get_parameter("deleteMessages"));
+          std::optional<int> days = std::get < std::optional<int> > (event.get_parameter("deleteMessages"));
           
           if (days > 7 || days < 0) {
               event.reply("Err! Mein Fräulein wants you enter a number between 0 and 7 or none at all, not higher, not lower.");
@@ -124,16 +124,15 @@ int main() {
               days = 0;
           }
           
-          bot.guild_ban_add(guildID, userID, days, banReason, [userID](const confirmation_callback_t & cc) {
+          uint32_t daysToDelete = days.value_or(0);
+          bot.guild_ban_add(guildID, userID, daysToDelete, [userID, banReason](const confirmation_callback_t & cc){
               if(cc.is_error()) {
                   std::cerr << "Failed to ban user " << userID << "! Err: " << cc.error.message << std::endl;
                   event.reply("Failed to ban user, please consult with mein Fräulein for the error, or view the console.");
                   return;
-              } else {
-                  std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
               }
+              std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
           });
-          
           event.reply("User has been banned!");
       }
       
