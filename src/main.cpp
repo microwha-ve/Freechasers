@@ -105,8 +105,8 @@ int main() {
 
       auto app = std::get < application > (cc.value);
       for (auto & member: app.team.members) {
-        dev_team.insert(member.user_id);
-        std::cerr << "Added " << member.user_id << " to the Dev Team List!" << std::endl;
+        dev_team.insert(member.member_user.id);
+        std::cerr << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
       }
         std::cout << "Dev Team members loaded!" << std::endl;
     });
