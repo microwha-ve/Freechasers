@@ -115,8 +115,8 @@ int main() {
           snowflake guildID = event.command.guild_id;
           snowflake userID = std::get < snowflake > (event.get_parameter("userBan"));
           std::string banReason = std::get < std::string > (event.get_parameter("reasonBan"));
-          int days = std::get < int > (event.get_parameter("deleteMessages"));
-          
+          long int days = std::get<long int>(event.get_parameter("deleteMessages"));
+
           if (days > 7 || days < 0) {
               event.reply("Err! Mein Fräulein wants you enter a number between 0 and 7 or none at all, not higher, not lower.");
               return;
