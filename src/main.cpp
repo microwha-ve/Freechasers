@@ -161,22 +161,22 @@ int main() {
 
           event.thinking();
 
-          // Set audit log reason
+          // Set audit reason
           bot.set_audit_reason(reason);
 
-          // Add role first
-          bot.guild_member_add_role(guildID, userID, timeout_role_id, [event, &bot, guildID, userID, timeout_role_id, minutes, log_channel_id, reason](const confirmation_callback_t & cc) mutable {
+          // Add timeout role
+          bot.guild_member_add_role(guildID, userID, timeout_role_id,
+              [event, &bot, guildID, userID, timeout_role_id, minutes, log_channel_id, reason](const confirmation_callback_t & cc) mutable {
                   if (cc.is_error()) {
                       std::cerr << "Failed to add timeout role to user " << userID << "! Err: " << cc.get_error().message << std::endl;
                       event.edit_response("Attempt to restrain the subject failed. The role remains untouched.");
                       return;
                   }
 
-                  // Apply timeout with audit reason already set
-                  time_t now = std::time(nullptr);
-                  time_t timeout_until = now + (minutes * 60); // convert minutes → seconds
-
-                  bot.guild_member_timeout(guildID, userID, timeout_until, [event, &bot, guildID, userID, timeout_role_id, minutes, log_channel_id, reason](const confirmation_callback_t & cc2) mutable {
+                  // Apply timeout
+                  time_t timeout_until = std::time(nullptr) + (minutes * 60);
+                  bot.guild_member_timeout(guildID, userID, timeout_until,
+                      [event, &bot, guildID, userID, timeout_role_id, minutes, log_channel_id, reason](const confirmation_callback_t & cc2) mutable {
                           if (cc2.is_error()) {
                               event.edit_response("The role is applied, yet the timeout faltered. The subject remains partially free.");
                               std::cerr << "Failed to timeout user " << userID << "! Err: " << cc2.get_error().message << std::endl;
@@ -190,18 +190,17 @@ int main() {
                           if (!reason.empty())
                               msg += ". Reason: " + reason;
 
-                          bot.message_create(message(log_channel_id, msg));
+                          bot.message_create(dpp::message(log_channel_id, msg));
 
-                          // Schedule role removal after timeout
+                          // Schedule role removal
                           std::thread([&bot, guildID, userID, timeout_role_id, minutes]() {
                               std::this_thread::sleep_for(std::chrono::minutes(minutes));
-                              bot.guild_member_remove_role(guildID, userID, timeout_role_id);
+                              bot.guild_member_remove_role(guildID, userID, timeout_role_id, utility::log_error());
                           }).detach();
                       }
                   );
               }
           );
-      
   });
     
     
