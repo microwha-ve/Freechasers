@@ -128,11 +128,11 @@ int main() {
           bot.guild_ban_add(guildID, userID, days, [&event, userID, banReason](const confirmation_callback_t & cc) {
               if(cc.is_error()) {
                   std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
-                  event.reply("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
+                  event.follow_up("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
                   return;
               }
               std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
-              event.reply("User has been banned!");
+              event.follow_up("User has been banned!");
           });
       }
       
