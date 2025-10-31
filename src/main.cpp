@@ -95,7 +95,7 @@ int main() {
   });
 
   // Things that run when the bot is connected to discord api
-  bot.on_ready([ & bot](const ready_t & event) {
+  bot.on_ready([ & bot, & dev_team ](const ready_t & event) {
 
     std::cout << "Logged in as " << bot.me.username << "!" << std::endl;
 
