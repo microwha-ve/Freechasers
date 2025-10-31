@@ -33,7 +33,10 @@ int main() {
 
       //new perms check to be implemented
 
-      std::cerr << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
+        if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
+            event.reply("My Fräulein has not given you permission to issue me that order.");
+            return;
+        }
 
       // Variables to be filled
       presence_status status;
@@ -66,9 +69,10 @@ int main() {
         event.reply("Invalid Activity!");
           return;
       }
-
+        
       // Setting the status
       bot.set_presence(presence(status, activity, text_str));
+      std::cerr << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
 
       // Replies so the user gets feedback.
       event.reply("Status Updated!");
