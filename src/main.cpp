@@ -126,7 +126,7 @@ int main() {
 
           bot.set_audit_reason(banReason);
 
-          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const dpp::confirmation_callback_t & cc) mutable {
+          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const confirmation_callback_t & cc) mutable {
                   if(cc.is_error()) {
                       event.edit_response("The attempt has failed. The one in question remains unscathed.");
                       std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
@@ -156,48 +156,51 @@ int main() {
               return;
           }
 
-          snowflake timeout_role_id = 123456789012345678; // replace with your role ID
-          snowflake log_channel_id = 123456789012345678; //replace with your channel ID
+          snowflake timeout_role_id = 1077355031680000000; // replace with your role ID
+          snowflake log_channel_id = 1077358314809204866; //replace with your channel ID
 
           event.thinking();
 
-          bot.guild_member_add_role(guildID, userID, timeout_role_id, reason,
-              [event, &bot, guildID, userID, timeout_role_id, minutes, reason](const dpp::confirmation_callback_t & cc) mutable {
+          // Set audit log reason
+          bot.set_audit_reason(reason);
+
+          // Add role first
+          bot.guild_member_add_role(guildID, userID, timeout_role_id, [event, &bot, guildID, userID, timeout_role_id, minutes, log_channel_id, reason](const confirmation_callback_t & cc) mutable {
                   if (cc.is_error()) {
                       std::cerr << "Failed to add timeout role to user " << userID << "! Err: " << cc.get_error().message << std::endl;
                       event.edit_response("Attempt to restrain the subject failed. The role remains untouched.");
                       return;
                   }
 
-                  uint64_t duration_ms = static_cast<uint64_t>(minutes) * 60 * 1000;
-                  bot.guild_member_timeout(guildID, userID, duration_ms, reason,
-                      [event, &bot, guildID, userID, timeout_role_id, minutes, reason](const dpp::confirmation_callback_t & cc2) mutable {
+                  // Apply timeout with audit reason already set
+                  time_t now = std::time(nullptr);
+                  time_t timeout_until = now + (minutes * 60); // convert minutes → seconds
+
+                  bot.guild_member_timeout(guildID, userID, timeout_until, [event, &bot, guildID, userID, timeout_role_id, minutes, log_channel_id, reason](const confirmation_callback_t & cc2) mutable {
                           if (cc2.is_error()) {
                               event.edit_response("The role is applied, yet the timeout faltered. The subject remains partially free.");
                               std::cerr << "Failed to timeout user " << userID << "! Err: " << cc2.get_error().message << std::endl;
                               return;
                           }
-                      
-                      // Complete the interaction immediately
-                      event.edit_response("Timeout applied successfully.");
 
-                      // Send a normal message to the specified channel, pinging the user
-                      std::string msg = "<@" + userID.str() + "> has been confined for " + std::to_string(minutes) + " minutes";
-                      if (!reason.empty())
-                          msg += ". Reason: " + reason;
+                          event.edit_response("Timeout applied successfully.");
 
-                      bot.message_create(dpp::message(log_channel_id, msg));
+                          // Notify in log channel
+                          std::string msg = "<@" + userID.str() + "> has been confined for " + std::to_string(minutes) + " minutes";
+                          if (!reason.empty())
+                              msg += ". Reason: " + reason;
 
-                      // Schedule role removal
-                      std::thread([&bot, guildID, userID, timeout_role_id, minutes]() {
-                          std::this_thread::sleep_for(std::chrono::minutes(minutes));
-                          bot.guild_member_remove_role(guildID, userID, timeout_role_id, "The confinement has ended.");
-                      }).detach();
-                  }
-              );
-          }
-      );
-  }
+                          bot.message_create(message(log_channel_id, msg));
+
+                          // Schedule role removal after timeout
+                          std::thread([&bot, guildID, userID, timeout_role_id, minutes]() {
+                              std::this_thread::sleep_for(std::chrono::minutes(minutes));
+                              bot.guild_member_remove_role(guildID, userID, timeout_role_id);
+                          }).detach();
+                      }
+                  );
+              }
+          );
       
   });
     
