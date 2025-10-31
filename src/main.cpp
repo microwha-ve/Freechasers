@@ -123,16 +123,16 @@ int main() {
           }
           
           // Ban the user
-          event.co_thinking(); // timeout issues when the ban doesnt go through, so telling discord to take a chill pill
+          event.thinking(); // timeout issues when the ban doesnt go through, so telling discord to take a chill pill
           bot.set_audit_reason(banReason);
-          bot.guild_ban_add(guildID, userID, days, [&event, userID, banReason](const confirmation_callback_t & cc) {
+          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const dpp::confirmation_callback_t & cc) mutable {
               if(cc.is_error()) {
+                  event.reply("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
                   std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
-                  event.co_follow_up("Main Fräulein wishes to inform you that the order failed, please send her a message for more information");
                   return;
               }
               std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
-              event.co_follow_up("User has been banned!");
+              event.reply("User has been banned!");
           });
       }
       
