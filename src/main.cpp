@@ -80,7 +80,8 @@ int main() {
           event.reply("Status Updated!");
         }
 
-        if (event.command.get_command_name() == "whoami") {
+        /* It doesnt work and its just not needed rn
+         if (event.command.get_command_name() == "whoami") {
 
           std::string username = event.command.get_issuing_user().username;
           std::string screenname = event.command.get_issuing_user().global_name;
@@ -89,9 +90,9 @@ int main() {
           //std::string tag         = event.command.get_issuing_user().primary_guild.tag; //Doesnt work for some reason
           std::string servers = std::to_string(event.command.get_issuing_user().refcount);
 
-          event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created /*+ "\n Your primary server/tag is: " + tag */ + "\n You are in: " + servers + " servers!");
+          event.reply(" Your username is: " + username + "\n Your screenname is: " + screenname + "\n Your discord ID is: " + id + "\n Your account was created: " + created + "\n Your primary server/tag is: " + tag  + "\n You are in: " + servers + " servers!");
           std::cout << event.command.get_issuing_user().get_creation_time() << std::endl;
-        }
+        }*/
 
         if (event.command.get_command_name() == "ban") {
           if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
@@ -213,7 +214,7 @@ int main() {
         // Sets activity, ps_dnd = Do Not Disturb, "bhop_arcane" is the text status, at_competing = is like the sub thingy, like listening, watching, playing etc etc
         if (run_once < struct set_status > ()) {
           std::cout << "Setting Presence status..." << std::endl;
-          bot.set_presence(presence(ps_dnd, at_competing, "bhop_arcane")); // Default status
+          bot.set_presence(presence(ps_dnd, at_game, "Traveling from the Immernarchtreich")); // Default status
           std::cout << "Presence status set!" << std::endl;
         }
         // The only registered command, provides the command name and "description" when you type "/" in discord.
@@ -277,7 +278,7 @@ int main() {
           bot.global_bulk_command_create({
             pingCommand,
             statusCommand,
-            whoamiCommand,
+            //whoamiCommand,
             banCommand,
             timeoutCommand
           });
