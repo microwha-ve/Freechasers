@@ -38,3 +38,4 @@ build/
 *.env
 *.vscode
 *.sh
+.DS_Store
