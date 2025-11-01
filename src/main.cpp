@@ -271,7 +271,7 @@ int main() {
           );
           // timoutOption #3
           timeoutCommand.add_option(
-            command_option(co_integer, "time", "Time in minutes", true)
+            command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
           );
 
           std::cout << "Registering slash commands..." << std::endl;
