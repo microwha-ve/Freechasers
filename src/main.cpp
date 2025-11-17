@@ -78,8 +78,6 @@ int main() {
                     // edit_original_response needs a dpp::message, not a string literal
                     event.edit_original_response(dpp::message(out.str()));
                 }
-            });
-        }
 
 
 
