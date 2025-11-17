@@ -45,37 +45,41 @@ int main() {
     std::unordered_set < snowflake > dev_team;
 
     // Defines what the commands will do
-    if (event.command.get_command_name() == "ping") {
+    bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
+        
 
-        event.thinking(true); // show "thinking..."
+        if (event.command.get_command_name() == "ping") {
 
-        // --- GATEWAY PING ---
-        double gateway_ping_ms = 0.0;
+            event.thinking(true); // show "thinking..."
 
-        const auto& shards = bot.get_shards();
-        if (!shards.empty() && shards[0]) {
-            gateway_ping_ms = shards[0]->websocket_ping * 1000.0; // seconds → ms
-        }
+            // --- GATEWAY PING ---
+            double gateway_ping_ms = 0.0;
 
-        // --- REST PING ---
-        bot.rest_ping([&event, gateway_ping_ms](const dpp::confirmation_callback_t& cc) {
-            if (cc.is_error()) {
-                event.edit_original_response("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable");
-                return;
+            const auto& shards = bot.get_shards();
+            if (!shards.empty() && shards[0]) {
+                gateway_ping_ms = shards[0]->websocket_ping * 1000.0; // seconds → ms
             }
 
-            double rest_ping_ms = std::get<double>(cc.value);
+            // --- REST PING ---
+            bot.rest_ping([&event, gateway_ping_ms](const dpp::confirmation_callback_t& cc) {
+                if (cc.is_error()) {
+                    event.edit_original_response("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable");
+                    return;
+                }
 
-            std::ostringstream out;
-            out << "Pong!\n"
-                << "Gateway: **" << std::fixed << std::setprecision(2)
-                << gateway_ping_ms << " ms**\n"
-                << "REST: **" << std::fixed << std::setprecision(2)
-                << rest_ping_ms << " ms**";
+                double rest_ping_ms = std::get<double>(cc.value);
 
-            event.edit_original_response(dpp::message(out.str()));
-        });
-    }
+                std::ostringstream out;
+                out << "Pong!\n"
+                    << "Gateway: **" << std::fixed << std::setprecision(2)
+                    << gateway_ping_ms << " ms**\n"
+                    << "REST: **" << std::fixed << std::setprecision(2)
+                    << rest_ping_ms << " ms**";
+
+                event.edit_original_response(dpp::message(out.str()));
+            });
+        }
+
 
         if (event.command.get_command_name() == "status") {
 
