@@ -174,7 +174,7 @@ int main() {
             }
 
             std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
-            std::string msg = "<@" + userID.str() + "> has been banned for " + banReason + ".\n Banned by <@" + event.command.get_issuing_user().id.str + ">";
+            std::string msg = "<@" + userID.str() + "> has been banned for " + banReason + ".\n Banned by <@" + event.command.get_issuing_user().id.str() + ">";
             event.edit_response("The deed is done. The user has been removed.");
             bot.message_create(message(log_channel_id, msg));
           });
