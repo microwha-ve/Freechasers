@@ -150,7 +150,8 @@ int main() {
             event.edit_original_response(dpp::message("Mein Fräulein has not given you permission to issue me that order."));
             return;
           }
-
+          
+          snowflake log_channel_id = 1077358314809204866;
           snowflake guildID = event.command.guild_id;
           snowflake userID = std::get < snowflake > (event.get_parameter("userid"));
           std::string banReason = std::get < std::string > (event.get_parameter("reason"));
@@ -173,7 +174,9 @@ int main() {
             }
 
             std::cout << userID << " has been banned with the reasoning: " << banReason << std::endl;
+            std::string msg = "<@" + userID.str() + "> has been banned for " + banReason + ".\n Banned by <@" + event.command.get_issuing_user().id.str + ">";
             event.edit_response("The deed is done. The user has been removed.");
+            bot.message_create(message(log_channel_id, msg));
           });
         }
 
