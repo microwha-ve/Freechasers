@@ -9,12 +9,19 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 add_executable(${PROJECT_NAME}
     src/main.cpp
 )
+
+# ADD: extra sources for Lavalink + music commands
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        src/lavalink/client.cpp
+        src/commands/music.cpp
+)
  
 # Find our pre-installed DPP package (using FindDPP.cmake).
 find_package(DPP REQUIRED)
  
 # Link the pre-installed DPP package.
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(${PROJECT_NAME}
     ${DPP_LIBRARIES}
 )
  
@@ -22,12 +29,14 @@ target_link_libraries(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${DPP_INCLUDE_DIR}
 )
+
+# ADD: include your own headers (fc/...)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
  
 # Set C++ version
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
 )
-
-target_include_directories(FreechasersBot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_sources(FreechasersBot PRIVATE src/lavalink/client.cpp)
