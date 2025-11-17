@@ -83,10 +83,10 @@ int main() {
 
         if (event.command.get_command_name() == "status") {
 
-          //new perms check to be implemented
+          event.thinking(true);
 
           if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
-            event.reply("Mein Fräulein has not given you permission to issue me that order.");
+            event.edit_original_response(dpp::message("Mein Fräulein has not given you permission to issue me that order."));
             return;
           }
 
@@ -107,7 +107,7 @@ int main() {
           } else if (status_str == "dnd") {
             status = ps_dnd;
           } else {
-            event.reply("Invalid Status!");
+            event.edit_original_response(dpp::message("Invalid Status!"));
             return;
           }
 
@@ -118,7 +118,7 @@ int main() {
           } else if (activity_str == "watch") {
             activity = at_watching;
           } else {
-            event.reply("Invalid Activity!");
+            event.edit_original_response(dpp::message("Invalid Activity!"));
             return;
           }
 
@@ -127,7 +127,7 @@ int main() {
           std::cout << "\033[33mStatus updated by: " << event.command.get_issuing_user().id << "\033[0m" << std::endl; // WOW DOES WORK!!!!
 
           // Replies so the user gets feedback.
-          event.reply("Status Updated!");
+          event.edit_original_response(dpp::message("Status Updated!"));
         }
 
         /* It doesnt work and its just not needed rn
@@ -145,8 +145,9 @@ int main() {
         }*/
 
         if (event.command.get_command_name() == "ban") {
+          event.thinking(true);
           if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
-            event.reply("Mein Fräulein has not given you permission to issue me that order.");
+            event.edit_original_response(dpp::message("Mein Fräulein has not given you permission to issue me that order."));
             return;
           }
 
@@ -156,7 +157,7 @@ int main() {
           long int days = std::get < long int > (event.get_parameter("deletemessages"));
 
           if (days < 0 || days > 7) {
-            event.reply("The span of memory deletion must be between 0 and 7 days. Nothing more, nothing less.");
+            event.edit_original_response(dpp::message("The span of memory deletion must be between 0 and 7 days. Nothing more, nothing less."));
             return;
           }
 
@@ -177,8 +178,11 @@ int main() {
         }
 
         if (event.command.get_command_name() == "timeout") {
+
+          event.thinking(true);
+
           if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
-            event.reply("Mein Fräulein has not given you permission to issue me that order.");
+            event.edit_original_response(dpp::message("Mein Fräulein has not given you permission to issue me that order."));
             return;
           }
 
@@ -188,7 +192,7 @@ int main() {
           long int minutes = std::get < long int > (event.get_parameter("time"));
 
           if (minutes < 1 || minutes > 10080) {
-            event.reply("The time frame specified is illogical. Limit it between 1 minute and 7 days.");
+            event.edit_original_response(dpp::message("The time frame specified is illogical. Limit it between 1 minute and 7 days."));
             return;
           }
 
@@ -240,14 +244,15 @@ int main() {
         };
         
         if (event.command.get_command_name() == "shutdown") {
+          event.thinking(true);
             if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
-              event.reply("Mein Fräulein has not given you permission to issue me that order.");
+              event.edit_original_response(dpp::message("Mein Fräulein has not given you permission to issue me that order."));
               return;
             }
             
             log_shutdown_to_file(event.command.get_issuing_user());
             
-            event.reply("Shutting down...");
+            event.edit_original_response(dpp::message("Shutting down..."));
             
             bot.start_timer([&bot](timer timer){
                 bot.shutdown();
