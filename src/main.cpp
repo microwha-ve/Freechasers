@@ -18,6 +18,24 @@
 
 using namespace dpp;
 
+void log_shutdown_to_file(const dpp::user& user) {
+    std::ofstream log("shutdown.log", std::ios::app);
+    if (!log.is_open()) {
+        // If logging fails, just skip it – don't crash the bot
+        return;
+    }
+
+    auto now = std::chrono::system_clock::now();
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+    log << '['
+        << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S")
+        << "] Shutdown requested by "
+        << user.format_username()   // username + discriminator or display name
+        << " (" << user.id << ')'
+        << '\n';
+}
+
 int main() {
 
     cluster bot(std::getenv("token")); // Sets token
@@ -28,10 +46,40 @@ int main() {
 
     // Defines what the commands will do
     bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
+        
 
         if (event.command.get_command_name() == "ping") {
-          event.reply("Pong!");
-        }
+            
+            event.thinking(true);
+
+                    // ---- GATEWAY PING ----
+                    double gateway_ping_ms = 0.0;
+
+                    const auto& shards = bot.get_shards();  // const std::map<unsigned, dpp::discord_client*>
+                    if (!shards.empty()) {
+                        auto it = shards.begin();          // just take the first shard
+                        if (it->second) {
+                            // websocket_ping is in seconds → convert to ms
+                            gateway_ping_ms = it->second->websocket_ping * 1000.0;
+                        }
+                    }
+
+                    // ---- REST PING ----
+                    // In your DPP version this is a plain member, in seconds.
+                    double rest_ping_ms = bot.rest_ping * 1000.0;
+
+                    std::ostringstream out;
+                    out << "Pong!\n"
+                        << "Gateway: **" << std::fixed << std::setprecision(2)
+                        << gateway_ping_ms << " ms**\n"
+                        << "REST: **" << std::fixed << std::setprecision(2)
+                        << rest_ping_ms << " ms**";
+
+                    // edit_original_response needs a dpp::message, not a string literal
+                    event.edit_original_response(dpp::message(out.str()));
+                }
+
+
 
         if (event.command.get_command_name() == "status") {
 
@@ -190,6 +238,22 @@ int main() {
             }
           );
         };
+        
+        if (event.command.get_command_name() == "shutdown") {
+            if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
+              event.reply("Mein Fräulein has not given you permission to issue me that order.");
+              return;
+            }
+            
+            log_shutdown_to_file(event.command.get_issuing_user());
+            
+            event.reply("Shutting down...");
+            
+            bot.start_timer([&bot](timer timer){
+                bot.shutdown();
+            }, 3.0);
+            
+        }
     });
       // Things that run when the bot is connected to discord api
       bot.on_ready([ & bot, & dev_team](const ready_t & event) {
@@ -231,6 +295,8 @@ int main() {
           slashcommand banCommand("ban", "Ban a user", bot.me.id);
 
           slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
+            
+          slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
 
           // statusOption #1
           statusCommand.add_option(
@@ -282,7 +348,8 @@ int main() {
             statusCommand,
             //whoamiCommand,
             banCommand,
-            timeoutCommand
+            timeoutCommand,
+            shutdownCommand
           });
 
           std::cout << "Registered slash commands!" << std::endl;
