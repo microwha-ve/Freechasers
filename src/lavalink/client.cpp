@@ -1,497 +1,342 @@
-#include "fc/lavalink/client.hpp"
+include "fc/lavalink/client.hpp"
 
 #include <dpp/utility.h>
 
-#include <iomanip>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <sstream>
-#include <cctype>
-#include <future>   // std::promise, std::future
-#include <memory>   // std::shared_ptr
 
-using namespace dpp;
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 namespace fc::lavalink {
 
-// ---------- small helpers ----------
-
-std::string node::to_string_snowflake(dpp::snowflake id) {
-    return std::to_string(static_cast<std::uint64_t>(id));
-}
-
-std::string node::url_encode(const std::string& value) {
-    std::ostringstream escaped;
-    escaped.fill('0');
-    escaped << std::hex << std::uppercase;
-
-    for (unsigned char c : value) {
-        // Unreserved characters according to RFC 3986
-        if (std::isalnum(c) ||
-            c == '-' || c == '_' || c == '.' || c == '~') {
-            escaped << c;
-        } else {
-            escaped << '%' << std::setw(2)
-                    << static_cast<int>(c);
-            escaped << std::setw(0);
-        }
-    }
-
-    return escaped.str();
-}
-
-std::string node::json_escape(const std::string& value) {
-    std::string out;
-    out.reserve(value.size() + 16); // small safety margin
-
-    for (unsigned char c : value) {
-        switch (c) {
-        case '"':  out += "\\\""; break;
-        case '\\': out += "\\\\"; break;
-        case '\b': out += "\\b";  break;
-        case '\f': out += "\\f";  break;
-        case '\n': out += "\\n";  break;
-        case '\r': out += "\\r";  break;
-        case '\t': out += "\\t";  break;
-        default:
-            if (c < 0x20) {
-                std::ostringstream oss;
-                oss << "\\u"
-                    << std::hex << std::setw(4) << std::setfill('0')
-                    << static_cast<int>(c);
-                out += oss.str();
-            } else {
-                out += static_cast<char>(c);
-            }
-        }
-    }
-
-    return out;
-}
-
-// ---------- ctor / config ----------
-
-node::node(dpp::cluster& cluster, node_config config)
+node::node(dpp::cluster& cluster, const node_config& cfg)
     : m_cluster(cluster)
-    , m_config(std::move(config)) {
-    m_cluster.log(
-        dpp::ll_info,
-        "Lavalink node created for " + m_config.host + ":" +
-        std::to_string(m_config.port) + (m_config.https ? " (https)" : " (http)")
-    );
-}
-
-void node::set_lavalink_session_id(const std::string& id) {
-    m_config.session_id = id;
-    m_cluster.log(dpp::ll_debug,
-                  "Lavalink session id set to '" + m_config.session_id + "'");
-}
-
-const std::string& node::get_lavalink_session_id() const {
-    return m_config.session_id;
-}
-
-// ---------- HTTP helper ----------
-
-dpp::http_headers node::build_default_headers(bool json_body) const {
-    dpp::http_headers headers;
-
-    // Required by Lavalink
-    headers.emplace("Authorization", m_config.password);
-    headers.emplace("User-Id", to_string_snowflake(m_cluster.me.id));
-    headers.emplace("Client-Name", m_config.client_name);
-
-    if (json_body) {
-        headers.emplace("Content-Type", "application/json");
-    }
-
-    return headers;
-}
-
-std::string node::http_request(const std::string& urlpath,
-                               const std::string& method,
-                               const std::string& body) const
+    , m_cfg(cfg)
+    , m_session_id(cfg.session_id)
 {
-    // Map HTTP verb string to dpp::http_method
-    dpp::http_method http_method_enum = dpp::m_get;
-    if (method == "GET") {
-        http_method_enum = dpp::m_get;
-    } else if (method == "POST") {
-        http_method_enum = dpp::m_post;
-    } else if (method == "PUT") {
-        http_method_enum = dpp::m_put;
-    } else if (method == "PATCH") {
-        http_method_enum = dpp::m_patch;
-    } else if (method == "DELETE") {
-        http_method_enum = dpp::m_delete;
+    std::ostringstream oss;
+    oss << "Initialising Lavalink node: host=" << m_cfg.host
+        << " port=" << m_cfg.port
+        << " https=" << (m_cfg.https ? "true" : "false")
+        << " session_id='" << m_session_id << "'";
+    m_cluster.log(dpp::ll_info, oss.str());
+}
+
+// Voice state from Discord → cache it for later player updates
+void node::handle_voice_state_update(const dpp::voice_state_update_t& ev) {
+    // Only care about our own bot's voice state
+    if (ev.state.user_id != m_cluster.me.id) {
+        return;
     }
 
-    const std::string full_url =
-        std::string(m_config.https ? "https://" : "http://") +
-        m_config.host + ":" + std::to_string(m_config.port) + urlpath;
+    std::lock_guard<std::mutex> lock(m_voice_mutex);
+    auto& vs = m_voice_states[ev.state.guild_id];
+    vs.session_id = ev.state.session_id;
 
-    m_cluster.log(
-        dpp::ll_debug,
-        "Lavalink HTTP request: " + method + " " + urlpath +
-        " (URL=" + full_url +
-        ", body=" + (body.empty() ? "empty" : std::to_string(body.size()) + " bytes") + ")"
-    );
+    std::ostringstream oss;
+    oss << "Cached voice_state for guild " << ev.state.guild_id
+        << " (sessionId=" << vs.session_id << ")";
+    m_cluster.log(dpp::ll_debug, oss.str());
+}
 
-    dpp::http_headers headers = build_default_headers(!body.empty());
+void node::handle_voice_server_update(const dpp::voice_server_update_t& ev) {
+    std::lock_guard<std::mutex> lock(m_voice_mutex);
+    auto& vs = m_voice_states[ev.guild_id];
+    vs.token    = ev.token;
+    vs.endpoint = ev.endpoint;
 
-    // Use promise/future to block until the async HTTP completes
-    std::promise<dpp::http_request_completion_t> prom;
-    auto fut = prom.get_future();
-    auto prom_ptr = std::make_shared<std::promise<dpp::http_request_completion_t>>(std::move(prom));
+    std::ostringstream oss;
+    oss << "Cached voice_server for guild " << ev.guild_id
+        << " (endpoint=" << vs.endpoint << ")";
+    m_cluster.log(dpp::ll_debug, oss.str());
+}
+
+std::optional<node::voice_state> node::get_voice_state_locked(dpp::snowflake guild_id) const {
+    auto it = m_voice_states.find(guild_id);
+    if (it == m_voice_states.end()) {
+        return std::nullopt;
+    }
+    const auto& vs = it->second;
+    if (vs.token.empty() || vs.endpoint.empty() || vs.session_id.empty()) {
+        return std::nullopt;
+    }
+    return vs;
+}
+
+// Synchronous HTTP helper using dpp::cluster::request
+std::string node::http_request(const std::string& method,
+                               const std::string& urlpath,
+                               const std::string& body_json) const
+{
+    dpp::http_method http_method_enum = dpp::m_get;
+    if (method == "POST")
+        http_method_enum = dpp::m_post;
+    else if (method == "PATCH")
+        http_method_enum = dpp::m_patch;
+    else if (method == "DELETE")
+        http_method_enum = dpp::m_delete;
+    else if (method == "PUT")
+        http_method_enum = dpp::m_put;
+
+    const std::string scheme   = m_cfg.https ? "https://" : "http://";
+    const std::string hostport = m_cfg.host + ":" + std::to_string(m_cfg.port);
+    const std::string full_url = scheme + hostport + urlpath;
+
+    dpp::http_headers headers{
+        {"Authorization", m_cfg.password},
+        {"Accept",       "application/json"},
+    };
+
+    std::mutex              m;
+    std::condition_variable cv;
+    bool                    done   = false;
+    std::uint16_t           status = 0;
+    std::string             response_body;
+
+    {
+        std::ostringstream oss;
+        oss << "Lavalink HTTP request: " << method << " " << urlpath
+            << " (URL=" << full_url << ", body="
+            << (body_json.empty() ? "empty" : std::to_string(body_json.size()) + " bytes")
+            << ")";
+        m_cluster.log(dpp::ll_debug, oss.str());
+    }
 
     m_cluster.request(
         full_url,
         http_method_enum,
-        [this, method, urlpath, full_url, prom_ptr]
-        (const dpp::http_request_completion_t& cc) {
+        [&, method, urlpath, full_url](const dpp::http_request_completion_t& cc) {
+            {
+                std::lock_guard<std::mutex> lock(m);
+                status        = cc.status;
+                response_body = cc.body;
+                done          = true;
+            }
+
             std::ostringstream oss;
             oss << "Lavalink HTTP " << cc.status
                 << " on " << method << " " << urlpath
                 << " (URL=" << full_url
                 << ", response length=" << cc.body.size() << ")";
-            m_cluster.log(dpp::ll_debug, oss.str());
-            prom_ptr->set_value(cc);
+            m_cluster.log(
+                (cc.status >= 200 && cc.status < 300) ? dpp::ll_debug : dpp::ll_warning,
+                oss.str()
+            );
+
+            cv.notify_one();
         },
-        body,
-        body.empty() ? "" : "application/json",
+        body_json,
+        body_json.empty() ? "" : "application/json",
         headers
     );
 
-    // Wait for completion
-    dpp::http_request_completion_t cc = fut.get();
-
-    if (cc.status == 0) {
-        m_cluster.log(
-            dpp::ll_warning,
-            "Lavalink HTTP status 0 (request failed) on " + method + " " + urlpath
-        );
+    std::unique_lock<std::mutex> lock(m);
+    if (!cv.wait_for(lock, std::chrono::seconds(10), [&] { return done; })) {
+        std::ostringstream oss;
+        oss << "Lavalink HTTP request to " << full_url << " timed out";
+        m_cluster.log(dpp::ll_warning, oss.str());
         return {};
     }
 
-    if (cc.status >= 200 && cc.status < 400) {
-        if (!m_seen_successful_request) {
-            m_cluster.log(
-                dpp::ll_info,
-                "Successfully reached Lavalink at " + m_config.host + ":" +
-                std::to_string(m_config.port) + " (status " + std::to_string(cc.status) + ")"
-            );
-            m_seen_successful_request = true;
-        }
-    } else {
-        std::string snippet = cc.body.substr(0, 200);
-        m_cluster.log(
-            dpp::ll_warning,
-            "Lavalink HTTP " + std::to_string(cc.status) +
-            " on " + method + " " + urlpath +
-            " response: " + snippet
-        );
+    if (status == 0) {
+        std::ostringstream oss;
+        oss << "Lavalink HTTP status 0 (request failed) on " << method << " " << urlpath;
+        m_cluster.log(dpp::ll_warning, oss.str());
+        return {};
     }
 
-    return cc.body;
+    return response_body;
 }
 
-// ---------- Voice glue ----------
+// /v4/loadtracks wrapper
+load_result node::load_tracks(const std::string& identifier) const {
+    load_result result;
 
-void node::handle_voice_state_update(const dpp::voice_state_update_t& event) {
-    if (event.state.user_id != m_cluster.me.id) {
-        return;
-    }
+    const std::string encoded = dpp::utility::url_encode(identifier);
+    const std::string path    = "/v4/loadtracks?identifier=" + encoded;
 
-    if (event.state.guild_id == 0) {
-        return;
-    }
-
-    m_cluster.log(
-        dpp::ll_debug,
-        "voice_state_update: guild=" + to_string_snowflake(event.state.guild_id) +
-        " channel=" + to_string_snowflake(event.state.channel_id) +
-        " session=" + event.state.session_id
-    );
-
-    auto& data = m_voice_state[event.state.guild_id];
-    data.session_id = event.state.session_id;
-
-    if (!event.state.channel_id) {
-        m_cluster.log(
-            dpp::ll_info,
-            "Bot left voice channel in guild " + to_string_snowflake(event.state.guild_id) +
-            ", clearing voice state."
-        );
-        m_voice_state.erase(event.state.guild_id);
-        return;
-    }
-
-    send_voice_update(event.state.guild_id);
-}
-
-void node::handle_voice_server_update(const dpp::voice_server_update_t& event) {
-    if (!event.guild_id) {
-        return;
-    }
-
-    m_cluster.log(
-        dpp::ll_debug,
-        "voice_server_update: guild=" + to_string_snowflake(event.guild_id) +
-        " endpoint=" + event.endpoint
-    );
-
-    auto& data = m_voice_state[event.guild_id];
-    data.token = event.token;
-    data.endpoint = event.endpoint;
-
-    send_voice_update(event.guild_id);
-}
-
-void node::send_voice_update(dpp::snowflake guild_id) {
-    auto it = m_voice_state.find(guild_id);
-    if (it == m_voice_state.end()) {
-        m_cluster.log(
-            dpp::ll_debug,
-            "send_voice_update: no stored voice state for guild " +
-            to_string_snowflake(guild_id)
-        );
-        return;
-    }
-
-    const auto& vs = it->second;
-
-    if (vs.token.empty() || vs.endpoint.empty() || vs.session_id.empty()) {
-        m_cluster.log(
-            dpp::ll_debug,
-            "send_voice_update: incomplete voice state for guild " +
-            to_string_snowflake(guild_id) +
-            " (token/endpoint/session_id missing)"
-        );
-        return;
-    }
-
-    m_cluster.log(
-        dpp::ll_info,
-        "Sending voiceUpdate to Lavalink for guild " + to_string_snowflake(guild_id)
-    );
-
-    std::string url = "/v4/sessions/" + m_config.session_id
-                    + "/players/" + to_string_snowflake(guild_id);
-
-    std::string body = "{"
-                       "\"voice\":{"
-                       "\"token\":\""    + json_escape(vs.token) + "\","
-                       "\"endpoint\":\"" + json_escape(vs.endpoint) + "\","
-                       "\"sessionId\":\""+ json_escape(vs.session_id) + "\""
-                       "}"
-                       "}";
-
-    http_request(url, "PATCH", body);
-}
-
-// ---------- Track loading ----------
-
-std::string node::load_tracks_raw(const std::string& identifier) const {
-    std::string encoded = url_encode(identifier);
-    std::string url =
-        "/v4/loadtracks?identifier=" + encoded;
-
-    m_cluster.log(
-        dpp::ll_debug,
-        "Requesting /v4/loadtracks for identifier: " + identifier
-    );
-
-    return http_request(url, "GET");
-}
-
-std::vector<track> node::load_tracks(const std::string& identifier) const {
-    std::vector<track> result;
-    const std::string raw = load_tracks_raw(identifier);
-
-    if (raw.empty()) {
-        m_cluster.log(
-            dpp::ll_warning,
-            "Empty response from Lavalink /loadtracks for identifier: " + identifier
-        );
+    const std::string body = http_request("GET", path, "");
+    if (body.empty()) {
+        result.type          = load_type::empty;
+        result.error_message = "Empty response from Lavalink /loadtracks";
+        m_cluster.log(dpp::ll_warning, result.error_message);
         return result;
     }
 
-    dpp::json j = dpp::json::parse(raw, nullptr, false);
-    if (j.is_discarded()) {
-        m_cluster.log(
-            dpp::ll_warning,
-            "Failed to parse Lavalink /loadtracks JSON for identifier: " + identifier
-        );
+    json j;
+    try {
+        j = json::parse(body);
+    } catch (const std::exception& e) {
+        std::ostringstream oss;
+        oss << "Failed to parse /loadtracks response: " << e.what();
+        m_cluster.log(dpp::ll_warning, oss.str());
+        result.type          = load_type::error;
+        result.error_message = oss.str();
         return result;
     }
 
-    dpp::json tracks_json;
-
-    if (j.is_array()) {
-        tracks_json = j;
-    } else if (j.contains("tracks")) {
-        tracks_json = j["tracks"];
-    } else if (j.contains("data")) {
-        if (j["data"].is_array()) {
-            tracks_json = j["data"];
-        } else if (j["data"].contains("tracks")) {
-            tracks_json = j["data"]["tracks"];
+    const std::string lt = j.value("loadType", std::string("empty"));
+    if (lt == "track") {
+        result.type = load_type::track;
+        const auto& t = j["data"];
+        track tr;
+        tr.encoded    = t.value("encoded", std::string{});
+        const auto& info = t["info"];
+        tr.title      = info.value("title", std::string{});
+        tr.author     = info.value("author", std::string{});
+        tr.uri        = info.value("uri", std::string{});
+        tr.length_ms  = info.value("length", 0LL);
+        result.tracks.push_back(std::move(tr));
+    } else if (lt == "search") {
+        result.type = load_type::search;
+        for (const auto& t : j["data"]) {
+            track tr;
+            tr.encoded    = t.value("encoded", std::string{});
+            const auto& info = t["info"];
+            tr.title      = info.value("title", std::string{});
+            tr.author     = info.value("author", std::string{});
+            tr.uri        = info.value("uri", std::string{});
+            tr.length_ms  = info.value("length", 0LL);
+            result.tracks.push_back(std::move(tr));
         }
-    }
-
-    if (!tracks_json.is_array()) {
-        if (j.contains("loadType") && j["loadType"].is_string()) {
-            std::string lt = j["loadType"].get<std::string>();
-            m_cluster.log(
-                dpp::ll_warning,
-                "Unexpected loadType from /loadtracks for identifier '" +
-                identifier + "': " + lt + " (raw: " + raw.substr(0, 200) + ")"
-            );
+    } else if (lt == "playlist") {
+        result.type = load_type::playlist;
+        for (const auto& t : j["data"]["tracks"]) {
+            track tr;
+            tr.encoded    = t.value("encoded", std::string{});
+            const auto& info = t["info"];
+            tr.title      = info.value("title", std::string{});
+            tr.author     = info.value("author", std::string{});
+            tr.uri        = info.value("uri", std::string{});
+            tr.length_ms  = info.value("length", 0LL);
+            result.tracks.push_back(std::move(tr));
+        }
+    } else if (lt == "empty") {
+        result.type = load_type::empty;
+    } else if (lt == "error") {
+        result.type = load_type::error;
+        if (j.contains("data")) {
+            result.error_message = j["data"].value("message", std::string{"Unknown Lavalink error"});
         } else {
-            m_cluster.log(
-                dpp::ll_warning,
-                "Unexpected JSON structure from /loadtracks for identifier: " + identifier
-            );
+            result.error_message = "Unknown Lavalink error (no data field)";
         }
-        return result;
+        m_cluster.log(dpp::ll_warning, "Lavalink loadtracks error: " + result.error_message);
+    } else {
+        result.type          = load_type::error;
+        result.error_message = "Unknown loadType from Lavalink: " + lt;
+        m_cluster.log(dpp::ll_warning, result.error_message);
     }
 
-    for (const auto& t : tracks_json) {
-        if (!t.is_object()) {
-            continue;
-        }
-
-        track out;
-
-        if (t.contains("encoded") && t["encoded"].is_string()) {
-            out.encoded = t["encoded"].get<std::string>();
-        }
-
-        const dpp::json* info = nullptr;
-
-        if (t.contains("info") && t["info"].is_object()) {
-            info = &t["info"];
-        } else if (t.contains("track") && t["track"].is_object()) {
-            info = &t["track"];
-        }
-
-        if (info) {
-            if (info->contains("title") && (*info)["title"].is_string()) {
-                out.title = (*info)["title"].get<std::string>();
-            }
-            if (info->contains("author") && (*info)["author"].is_string()) {
-                out.author = (*info)["author"].get<std::string>();
-            }
-            if (info->contains("uri") && (*info)["uri"].is_string()) {
-                out.uri = (*info)["uri"].get<std::string>();
-            }
-            if (info->contains("length") && (*info)["length"].is_number_integer()) {
-                out.length_ms = (*info)["length"].get<std::int64_t>();
-            }
-        }
-
-        if (!out.encoded.empty()) {
-            result.push_back(std::move(out));
-        }
-    }
-
-    m_cluster.log(
-        dpp::ll_info,
-        "Loaded " + std::to_string(result.size()) +
-        " track(s) from Lavalink for identifier: " + identifier
-    );
+    std::ostringstream oss;
+    oss << "Loaded " << result.tracks.size() << " track(s) from Lavalink for identifier: " << identifier;
+    m_cluster.log(dpp::ll_info, oss.str());
 
     return result;
 }
 
-// ---------- Player controls ----------
-
-void node::play(dpp::snowflake guild_id,
-                const std::string& encoded_track,
-                bool no_replace) const {
-    std::string url = "/v4/sessions/" + m_config.session_id
-                    + "/players/" + to_string_snowflake(guild_id);
-
-    m_cluster.log(
-        dpp::ll_info,
-        "Sending play to Lavalink for guild " + to_string_snowflake(guild_id) +
-        " (noReplace=" + std::string(no_replace ? "true" : "false") + ")"
-    );
-
-    std::ostringstream body;
-    body << "{"
-         << "\"track\":{"
-         << "\"encoded\":\"" << json_escape(encoded_track) << "\""
-         << "}"
-         << ",\"noReplace\":" << (no_replace ? "true" : "false")
-         << "}";
-
-    http_request(url, "PATCH", body.str());
-}
-
-void node::stop(dpp::snowflake guild_id) const {
-    std::string url = "/v4/sessions/" + m_config.session_id
-                    + "/players/" + to_string_snowflake(guild_id);
-
-    m_cluster.log(
-        dpp::ll_info,
-        "Sending stop to Lavalink for guild " + to_string_snowflake(guild_id)
-    );
-
-    std::string body = "{\"track\":null}";
-
-    http_request(url, "PATCH", body);
-}
-
-void node::pause(dpp::snowflake guild_id, bool pause) const {
-    std::string url = "/v4/sessions/" + m_config.session_id
-                    + "/players/" + to_string_snowflake(guild_id);
-
-    m_cluster.log(
-        dpp::ll_info,
-        std::string("Sending ") + (pause ? "pause" : "resume") +
-        " to Lavalink for guild " + to_string_snowflake(guild_id)
-    );
-
-    std::string body = std::string("{\"pause\":")
-                     + (pause ? "true" : "false") + "}";
-
-    http_request(url, "PATCH", body);
-}
-
-void node::set_volume(dpp::snowflake guild_id, int volume) const {
-    if (volume < 0) volume = 0;
-    if (volume > 1000) volume = 1000;
-
-    std::string url = "/v4/sessions/" + m_config.session_id
-                    + "/players/" + to_string_snowflake(guild_id);
-
-    m_cluster.log(
-        dpp::ll_info,
-        "Sending volume=" + std::to_string(volume) +
-        " to Lavalink for guild " + to_string_snowflake(guild_id)
-    );
-
-    std::string body = "{\"volume\":" + std::to_string(volume) + "}";
-
-    http_request(url, "PATCH", body);
-}
-
-void node::seek(dpp::snowflake guild_id, std::int64_t position_ms) const {
-    if (position_ms < 0) {
-        position_ms = 0;
+// Internal helper for PATCH /players
+bool node::send_player_update(dpp::snowflake guild_id,
+                              const json& payload,
+                              bool no_replace)
+{
+    if (m_session_id.empty()) {
+        m_cluster.log(dpp::ll_warning,
+                      "Cannot send player update: session_id is empty. "
+                      "Lavalink v4 requires a valid sessionId from the READY websocket op.");
+        return false;
     }
 
-    std::string url = "/v4/sessions/" + m_config.session_id
-                    + "/players/" + to_string_snowflake(guild_id);
+    std::string path = "/v4/sessions/" + m_session_id +
+                       "/players/" + guild_id.str() +
+                       (no_replace ? "?noReplace=true" : "?noReplace=false");
 
-    m_cluster.log(
-        dpp::ll_info,
-        "Sending seek to " + std::to_string(position_ms) +
-        "ms for guild " + to_string_snowflake(guild_id)
-    );
+    const std::string body = http_request("PATCH", path, payload.dump());
+    if (body.empty()) {
+        // http_request already logged details; just mark as failure here
+        return false;
+    }
 
-    std::string body = "{\"position\":" + std::to_string(position_ms) + "}";
+    // Successful HTTP (2xx/4xx) responses still return a body. For detailed
+    // error info, check logs produced by http_request.
+    return true;
+}
 
-    http_request(url, "PATCH", body);
+bool node::play(dpp::snowflake guild_id,
+                const std::string& encoded_track,
+                bool no_replace,
+                std::optional<std::int64_t> start_position_ms,
+                std::optional<int> volume)
+{
+    json payload;
+
+    // New-style v4 track object
+    payload["track"]["encoded"] = encoded_track;
+
+    if (start_position_ms.has_value()) {
+        payload["position"] = *start_position_ms;
+    }
+    if (volume.has_value()) {
+        payload["volume"] = *volume;
+    }
+
+    // Attach voice state if we have a complete triple
+    std::optional<voice_state> vs;
+    {
+        std::lock_guard<std::mutex> lock(m_voice_mutex);
+        vs = get_voice_state_locked(guild_id);
+    }
+    if (vs.has_value()) {
+        payload["voice"]["token"]     = vs->token;
+        payload["voice"]["endpoint"]  = vs->endpoint;
+        payload["voice"]["sessionId"] = vs->session_id;
+    }
+
+    std::ostringstream oss;
+    oss << "Sending play to Lavalink for guild " << guild_id
+        << " (noReplace=" << (no_replace ? "true" : "false") << ")";
+    m_cluster.log(dpp::ll_info, oss.str());
+
+    return send_player_update(guild_id, payload, no_replace);
+}
+
+bool node::stop(dpp::snowflake guild_id) {
+    json payload;
+    // As per v4 docs, null encoded track stops playback.
+    payload["track"] = nullptr;
+
+    std::ostringstream oss;
+    oss << "Sending stop to Lavalink for guild " << guild_id;
+    m_cluster.log(dpp::ll_info, oss.str());
+
+    return send_player_update(guild_id, payload, false);
+}
+
+bool node::pause(dpp::snowflake guild_id, bool pause_flag) {
+    json payload;
+    payload["paused"] = pause_flag;
+
+    std::ostringstream oss;
+    oss << "Sending pause=" << (pause_flag ? "true" : "false")
+        << " to Lavalink for guild " << guild_id;
+    m_cluster.log(dpp::ll_info, oss.str());
+
+    return send_player_update(guild_id, payload, false);
+}
+
+bool node::set_volume(dpp::snowflake guild_id, int volume_percent) {
+    json payload;
+    payload["volume"] = volume_percent;
+
+    std::ostringstream oss;
+    oss << "Sending volume=" << volume_percent
+        << " to Lavalink for guild " << guild_id;
+    m_cluster.log(dpp::ll_info, oss.str());
+
+    return send_player_update(guild_id, payload, false);
 }
 
 } // namespace fc::lavalink

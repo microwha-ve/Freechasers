@@ -1,10 +1,10 @@
 #pragma once
 
 #include <dpp/dpp.h>
-#include <dpp/httpsclient.h>
-#include <dpp/json.h>
 
 #include <cstdint>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,12 +12,13 @@
 namespace fc::lavalink {
 
 struct node_config {
-    std::string host = "127.0.0.1";   // Lavalink host (no scheme)
-    std::uint16_t port = 2333;        // Lavalink port
-    bool https = false;               // true = https, false = http
-    std::string password;             // Lavalink password (Authorization)
-    std::string client_name = "FreechasersBot-Lavalink/0.1.0";
-    std::string session_id = "default"; // Lavalink session id (path param)
+    std::string host = "127.0.0.1";
+    std::uint16_t port = 2333;
+    bool https = false;
+    std::string password;
+    // For now this is taken from your config (e.g. "default").
+    // A proper Lavalink v4 client should update this from the READY websocket op.
+    std::string session_id;
 };
 
 struct track {
@@ -28,56 +29,72 @@ struct track {
     std::int64_t length_ms = 0;
 };
 
+enum class load_type {
+    empty,
+    track,
+    search,
+    playlist,
+    error,
+};
+
+struct load_result {
+    load_type type = load_type::empty;
+    std::vector<track> tracks;
+    std::string error_message;
+};
+
 class node {
 public:
-    node(dpp::cluster& cluster, node_config config);
+    node(dpp::cluster& cluster, const node_config& cfg);
 
-    // Lavalink session id (not Discord voice session)
-    void set_lavalink_session_id(const std::string& id);
-    const std::string& get_lavalink_session_id() const;
+    // DPP voice glue – call these from your handlers:
+    //  bot.on_voice_state_update(...)
+    //  bot.on_voice_server_update(...)
+    void handle_voice_state_update(const dpp::voice_state_update_t& ev);
+    void handle_voice_server_update(const dpp::voice_server_update_t& ev);
 
-    // /v4/loadtracks
-    std::vector<track> load_tracks(const std::string& identifier) const;
-    std::string load_tracks_raw(const std::string& identifier) const;
+    // /v4/loadtracks wrapper
+    load_result load_tracks(const std::string& identifier) const;
 
-    // Player controls: PATCH /v4/sessions/{session}/players/{guild}
-    void play(dpp::snowflake guild_id,
+    // Player controls – PATCH /v4/sessions/{sessionId}/players/{guildId}
+    bool play(dpp::snowflake guild_id,
               const std::string& encoded_track,
-              bool no_replace = false) const;
+              bool no_replace,
+              std::optional<std::int64_t> start_position_ms = std::nullopt,
+              std::optional<int> volume = std::nullopt);
 
-    void stop(dpp::snowflake guild_id) const;
-    void pause(dpp::snowflake guild_id, bool pause) const;
-    void set_volume(dpp::snowflake guild_id, int volume) const;         // 0–1000
-    void seek(dpp::snowflake guild_id, std::int64_t position_ms) const; // >= 0
+    bool stop(dpp::snowflake guild_id);
+    bool pause(dpp::snowflake guild_id, bool pause);
+    bool set_volume(dpp::snowflake guild_id, int volume_percent);
 
-    // Voice glue: hook to D++ events
-    void handle_voice_state_update(const dpp::voice_state_update_t& event);
-    void handle_voice_server_update(const dpp::voice_server_update_t& event);
+    const std::string& session_id() const noexcept { return m_session_id; }
+    void set_session_id(const std::string& id) { m_session_id = id; }
 
 private:
-    struct voice_state_data {
-        std::string token;        // from voice_server_update
-        std::string endpoint;     // from voice_server_update
-        std::string session_id;   // Discord voice session id (from voice_state_update)
+    struct voice_state {
+        std::string token;
+        std::string endpoint;
+        std::string session_id;
     };
 
+    // Synchronous HTTP helper (safe, with timeout and logging)
+    std::string http_request(const std::string& method,
+                             const std::string& urlpath,
+                             const std::string& body_json) const;
+
+    // Internal helper to send player PATCH
+    bool send_player_update(dpp::snowflake guild_id,
+                            const nlohmann::json& payload,
+                            bool no_replace);
+
+    std::optional<voice_state> get_voice_state_locked(dpp::snowflake guild_id) const;
+
     dpp::cluster& m_cluster;
-    node_config m_config;
-    std::unordered_map<dpp::snowflake, voice_state_data> m_voice_state; // by guild id
+    node_config   m_cfg;
+    std::string   m_session_id;
 
-    // first successful HTTP request marker (for "connected to Lavalink" log)
-    mutable bool m_seen_successful_request = false;
-
-    dpp::http_headers build_default_headers(bool json_body) const;
-    std::string http_request(const std::string& urlpath,
-                             const std::string& method,
-                             const std::string& body = "") const;
-
-    void send_voice_update(dpp::snowflake guild_id);
-
-    static std::string url_encode(const std::string& value);
-    static std::string json_escape(const std::string& value);
-    static std::string to_string_snowflake(dpp::snowflake id);
+    mutable std::mutex m_voice_mutex;
+    std::unordered_map<dpp::snowflake, voice_state> m_voice_states;
 };
 
 } // namespace fc::lavalink
