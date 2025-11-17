@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <sstream>
 #include <algorithm>
+#include <cstdint>
 
 namespace fc::music {
 
@@ -40,7 +41,6 @@ static void handle_play(const dpp::slashcommand_t& event,
         return;
     }
 
-    // Retrieve "query" parameter (string)
     dpp::command_value v = event.get_parameter("query");
     std::string query = std::get<std::string>(v);
 
@@ -57,11 +57,9 @@ static void handle_play(const dpp::slashcommand_t& event,
     auto& st = g_guild_state[guild_id];
     bool start_immediately = st.queue.empty();
 
-    // We just use the first track from the search result
     st.queue.push_back(tracks.front());
 
     if (start_immediately) {
-        // Start playback of the first track in the queue
         lavalink.play(guild_id, st.queue.front().encoded);
         lavalink.set_volume(guild_id, st.volume);
         st.paused = false;
@@ -96,7 +94,6 @@ static void handle_pause(const dpp::slashcommand_t& event,
 
     auto& st = it->second;
 
-    // Toggle pause
     st.paused = !st.paused;
     lavalink.pause(guild_id, st.paused);
 
@@ -116,10 +113,7 @@ static void handle_stop(const dpp::slashcommand_t& event,
 
     const dpp::snowflake guild_id = event.command.guild_id;
 
-    // Stop on Lavalink
     lavalink.stop(guild_id);
-
-    // Clear local queue and state
     g_guild_state.erase(guild_id);
 
     event.reply("Stopped playback and cleared the queue.");
@@ -135,12 +129,13 @@ static void handle_volume(const dpp::slashcommand_t& event,
     const dpp::snowflake guild_id = event.command.guild_id;
 
     dpp::command_value v = event.get_parameter("level");
-    int level = static_cast<int>(std::get<int64_t>(v)); // D++ uses int64 for integer options
+    int64_t level64 = std::get<int64_t>(v);
+    int level = static_cast<int>(level64);
 
     if (level < 0) level = 0;
     if (level > 1000) level = 1000;
 
-    auto& st = g_guild_state[guild_id]; // creates if missing
+    auto& st = g_guild_state[guild_id];
     st.volume = level;
 
     lavalink.set_volume(guild_id, level);
@@ -212,7 +207,6 @@ static void handle_queue(const dpp::slashcommand_t& event) {
 std::vector<dpp::slashcommand> make_commands(dpp::cluster& bot) {
     std::vector<dpp::slashcommand> cmds;
 
-    // /play query:string
     dpp::slashcommand play_cmd("play",
                                "Play or queue a track",
                                bot.me.id);
@@ -221,17 +215,14 @@ std::vector<dpp::slashcommand> make_commands(dpp::cluster& bot) {
                             "URL or search query", true)
     );
 
-    // /pause
     dpp::slashcommand pause_cmd("pause",
                                 "Toggle pause/resume for the current track",
                                 bot.me.id);
 
-    // /stop
     dpp::slashcommand stop_cmd("stop",
                                "Stop playback and clear the queue",
                                bot.me.id);
 
-    // /volume level:int 0–1000
     dpp::slashcommand volume_cmd("volume",
                                  "Set playback volume (0–1000)",
                                  bot.me.id);
@@ -241,12 +232,10 @@ std::vector<dpp::slashcommand> make_commands(dpp::cluster& bot) {
     vol_opt.set_max_value(1000);
     volume_cmd.add_option(vol_opt);
 
-    // /queue
     dpp::slashcommand queue_cmd("queue",
                                 "Show the current music queue",
                                 bot.me.id);
 
-    // Restrict to guilds
     play_cmd.set_interaction_contexts({ dpp::itc_guild });
     pause_cmd.set_interaction_contexts({ dpp::itc_guild });
     stop_cmd.set_interaction_contexts({ dpp::itc_guild });

@@ -4,6 +4,7 @@
 
 #include <iomanip>
 #include <sstream>
+#include <cctype>
 
 using namespace dpp;
 
@@ -50,7 +51,6 @@ std::string node::json_escape(const std::string& value) {
         case '\t': out += "\\t";  break;
         default:
             if (c < 0x20) {
-                // control chars → \u00XX
                 std::ostringstream oss;
                 oss << "\\u"
                     << std::hex << std::setw(4) << std::setfill('0')
@@ -99,28 +99,30 @@ dpp::http_headers node::build_default_headers(bool json_body) const {
 std::string node::http_request(const std::string& urlpath,
                                const std::string& method,
                                const std::string& body) const {
-    // dpp::https_client is synchronous:
-    // it performs the request in the constructor and then we can read status/body.
     const bool plaintext = !m_config.https;
 
+    // NOTE: first parameter is &m_cluster in your DPP version
     https_client client(
-        m_config.host,
-        m_config.port,
-        urlpath,
-        method,
-        body,
-        build_default_headers(!body.empty()),
-        plaintext,
-        5,         // timeout seconds
-        "1.1"      // HTTP/1.1
+        &m_cluster,                                 // creator
+        m_config.host,                              // hostname
+        m_config.port,                              // port
+        urlpath,                                    // URL path
+        method,                                     // verb
+        body,                                       // request body
+        build_default_headers(!body.empty()),       // headers
+        plaintext,                                  // plaintext_connection
+        5,                                          // timeout (seconds)
+        "1.1"                                       // protocol
+        // completion callback omitted (default)
     );
 
     const auto status = client.get_status();
     const auto content = client.get_content();
 
     if (status >= 400) {
-        m_cluster.log(dpp::ll_warning, "Lavalink HTTP " + std::to_string(status) +
-                                         " on " + method + " " + urlpath);
+        m_cluster.log(dpp::ll_warning,
+                      "Lavalink HTTP " + std::to_string(status) +
+                      " on " + method + " " + urlpath);
     }
 
     return content;
@@ -141,9 +143,8 @@ void node::handle_voice_state_update(const dpp::voice_state_update_t& event) {
     auto& data = m_voice_state[event.state.guild_id];
     data.session_id = event.state.session_id;
 
-    // If the bot left voice, you may want to clear or send a voice null update.
+    // If the bot left voice, drop stored state
     if (!event.state.channel_id) {
-        // For now we simply drop stored state.
         m_voice_state.erase(event.state.guild_id);
         return;
     }
@@ -252,7 +253,6 @@ std::vector<track> node::load_tracks(const std::string& identifier) const {
         if (t.contains("info") && t["info"].is_object()) {
             info = &t["info"];
         } else if (t.contains("track") && t["track"].is_object()) {
-            // some clients use 'track' instead of 'info'
             info = &t["track"];
         }
 
@@ -271,7 +271,6 @@ std::vector<track> node::load_tracks(const std::string& identifier) const {
             }
         }
 
-        // encoded is the only thing strictly required to play
         if (!out.encoded.empty()) {
             result.push_back(std::move(out));
         }
@@ -303,7 +302,6 @@ void node::stop(dpp::snowflake guild_id) const {
     std::string url = "/v4/sessions/" + m_config.session_id
                     + "/players/" + to_string_snowflake(guild_id);
 
-    // stopping: send track = null
     std::string body = "{\"track\":null}";
 
     http_request(url, "PATCH", body);

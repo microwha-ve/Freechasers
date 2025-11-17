@@ -2,6 +2,7 @@
 
 #include <dpp/dpp.h>
 #include "fc/lavalink/client.hpp"
+
 #include <vector>
 
 namespace fc::music {
