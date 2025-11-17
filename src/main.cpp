@@ -21,7 +21,7 @@ using namespace dpp;
 void log_shutdown_to_file(const dpp::user& user) {
     std::ofstream log("shutdown.log", std::ios::app);
     if (!log.is_open()) {
-        // If logging fails, just skip it – don't crash the bot
+        std::cout << "File log failed" << std::endl;
         return;
     }
 
@@ -34,6 +34,7 @@ void log_shutdown_to_file(const dpp::user& user) {
         << user.format_username()   // username + discriminator or display name
         << " (" << user.id << ')'
         << '\n';
+    std::cout << log << std::endl;
 }
 
 int main() {
@@ -204,10 +205,8 @@ int main() {
           snowflake timeout_role_id = 1077355031680000000; // replace with your role ID
           snowflake log_channel_id = 1077358314809204866; //replace with your channel ID
 
-          event.thinking();
+          event.thinking(true);
 
-          // Set audit reason
-          bot.set_audit_reason(reason);
 
           // Add timeout role
           bot.guild_member_add_role(guildID, userID, timeout_role_id,
@@ -218,6 +217,8 @@ int main() {
                 return;
               }
 
+              // Set audit reason
+              bot.set_audit_reason(reason);
               // Apply timeout
               time_t timeout_until = std::time(nullptr) + (minutes * 60);
               bot.guild_member_timeout(guildID, userID, timeout_until,
