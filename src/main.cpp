@@ -1,20 +1,36 @@
 // Main Branch
 
-#include <dpp/dpp.h>            // D++
+#include <dpp/dpp.h>                // D++
 
-#include <dpp/presence.h>       // D++ Presence, may or may not be needed idk yet
+#include <dpp/presence.h>           // D++ Presence, may or may not be needed idk yet
 
-#include <dpp/user.h>           // D++ User, may or may not be needed idk yet
+#include <dpp/user.h>               // D++ User, may or may not be needed idk yet
 
-#include <dpp/appcommand.h>     // D++ Commands, may or may not be needed idk yet
+#include <dpp/appcommand.h>         // D++ Commands, may or may not be needed idk yet
 
-#include <dpp/application.h>    // D++ Application, may or may not be needed idk yet
+#include <dpp/application.h>        // D++ Application, may or may not be needed idk yet
 
-#include <dpp/utility.h>        // D++ Utility, may or may not be needed idk yet
+#include <dpp/utility.h>            // D++ Utility, may or may not be needed idk yet
 
-#include <cstdlib>              // Used for getenv();
+#include <cstdlib>                  // Used for getenv();
 
-#include <unordered_set>        // Used for storing Dev Team members
+#include <unordered_set>            // Used for storing Dev Team members
+
+#include "fc/lavalink/client.hpp"   // Lavalnk Connection
+
+#include "fc/commands/music.hpp"    // Lavalink Music Control
+
+#include <fstream>                  // File logging
+
+#include <chrono>                   // Time? lwk thought this already was added
+
+#include <iomanip>                  // more time
+
+#include <thread>                   // eepy
+
+#include <ctime>                    // more time
+
+
 
 using namespace dpp;
 
@@ -34,7 +50,6 @@ void log_shutdown_to_file(const dpp::user& user) {
         << user.format_username()   // username + discriminator or display name
         << " (" << user.id << ')'
         << '\n';
-    std::cout << log << std::endl;
 }
 
 int main() {
@@ -44,10 +59,28 @@ int main() {
     bot.on_log(utility::cout_logger()); // D++ own logger
 
     std::unordered_set < snowflake > dev_team;
+    
+    fc::lavalink::node_config lav_cfg;
+    lav_cfg.host       = "127.0.0.1";
+    lav_cfg.port       = 2333;
+    lav_cfg.https      = false;
+    lav_cfg.password   = "youshallnotpass";
+    lav_cfg.session_id = "default";
+
+    fc::lavalink::node lavalink(bot, lav_cfg);
+
+    // Lavalink voice glue
+    bot.on_voice_state_update([&](const dpp::voice_state_update_t& ev) {
+        lavalink.handle_voice_state_update(ev);
+    });
+
+    bot.on_voice_server_update([&](const dpp::voice_server_update_t& ev) {
+        lavalink.handle_voice_server_update(ev);
+    });
 
     // Defines what the commands will do
-    bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
-        
+    bot.on_slashcommand([&bot, &dev_team, &lavalink](const slashcommand_t& event) {
+        fc::music::route_slashcommand(event, lavalink);
 
         if (event.command.get_command_name() == "ping") {
             
@@ -267,108 +300,102 @@ int main() {
         }
     });
       // Things that run when the bot is connected to discord api
-      bot.on_ready([ & bot, & dev_team](const ready_t & event) {
+    bot.on_ready([&bot, &dev_team, &lavalink](const ready_t& event) {
 
         std::cout << "Logged in as " << bot.me.username << "!" << std::endl;
 
         // Load developer team member IDs
         std::cout << "Loading Dev Team members..." << std::endl;
 
-        bot.current_application_get([ & ](const confirmation_callback_t & cc) {
-          if (cc.is_error()) {
-            std::cerr << "Failed to fetch app info (team check unavailable)" << std::endl;
-            return;
-          }
+        bot.current_application_get([&](const confirmation_callback_t& cc) {
+            if (cc.is_error()) {
+                std::cerr << "Failed to fetch app info (team check unavailable)" << std::endl;
+                return;
+            }
 
-          auto app = std::get < application > (cc.value);
-          for (auto & member: app.team.members) {
-            dev_team.insert(member.member_user.id);
-            std::cout << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
-          }
-          std::cout << "Dev Team members loaded!" << std::endl;
+            auto app = std::get<application>(cc.value);
+            for (auto& member : app.team.members) {
+                dev_team.insert(member.member_user.id);
+                std::cout << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
+            }
+            std::cout << "Dev Team members loaded!" << std::endl;
         });
 
-        // Sets activity, ps_dnd = Do Not Disturb, "bhop_arcane" is the text status, at_competing = is like the sub thingy, like listening, watching, playing etc etc
-        if (run_once < struct set_status > ()) {
-          std::cout << "Setting Presence status..." << std::endl;
-          bot.set_presence(presence(ps_dnd, at_game, "Traveling from the Immernarchtreich")); // Default status
-          std::cout << "Presence status set!" << std::endl;
+        // Presence
+        if (run_once<struct set_status>()) {
+            std::cout << "Setting Presence status..." << std::endl;
+            bot.set_presence(presence(ps_dnd, at_game, "Traveling from the Immernarchtreich"));
+            std::cout << "Presence status set!" << std::endl;
         }
-        // The only registered command, provides the command name and "description" when you type "/" in discord.
-        if (run_once < struct register_bot_commands > ()) {
 
-          slashcommand pingCommand("ping", "Pong!", bot.me.id);
+        // Slash commands
+        if (run_once<struct register_bot_commands>()) {
+            std::cout << "Registering slash commands..." << std::endl;
 
-          slashcommand statusCommand("status", "Set bot status!", bot.me.id);
+            slashcommand pingCommand("ping", "Pong!", bot.me.id);
+            slashcommand statusCommand("status", "Set bot status!", bot.me.id);
+            slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
+            slashcommand banCommand("ban", "Ban a user", bot.me.id);
+            slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
+            slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
 
-          slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
+            // status options
+            statusCommand.add_option(
+                command_option(co_string, "status", "Select a status", true)
+                    .add_choice(command_option_choice("Online", std::string("onl")))
+                    .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
+                    .add_choice(command_option_choice("Idle", std::string("idle")))
+            );
+            statusCommand.add_option(
+                command_option(co_string, "activity", "Select an activity for the status", true)
+                    .add_choice(command_option_choice("Playing", std::string("ply")))
+                    .add_choice(command_option_choice("Listening", std::string("listn")))
+                    .add_choice(command_option_choice("Watching", std::string("watch")))
+            );
+            statusCommand.add_option(
+                command_option(co_string, "text", "Write the status message!", true)
+            );
 
-          slashcommand banCommand("ban", "Ban a user", bot.me.id);
+            // ban options
+            banCommand.add_option(
+                command_option(co_user, "userid", "Select a user to be banned", true)
+            );
+            banCommand.add_option(
+                command_option(co_string, "reason", "Write a ban reason", true)
+            );
+            banCommand.add_option(
+                command_option(co_integer, "deletemessages",
+                               "Delete the users messages for the past X days (at most 7 days), if unsure enter 0",
+                               true)
+            );
 
-          slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
-            
-          slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
+            // timeout options
+            timeoutCommand.add_option(
+                command_option(co_user, "userid", "Who did the oopsie?", true)
+            );
+            timeoutCommand.add_option(
+                command_option(co_string, "reason", "Reasoning for the timeout", true)
+            );
+            timeoutCommand.add_option(
+                command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
+            );
 
-          // statusOption #1
-          statusCommand.add_option(
-            command_option(co_string, "status", "Select a status", true) // 'true' makes the option required
-            .add_choice(command_option_choice("Online", std::string("onl")))
-            .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
-            .add_choice(command_option_choice("Idle", std::string("idle")))
-          );
-          // statusOption #2
-          statusCommand.add_option(
-            command_option(co_string, "activity", "Select an activity for the status", true)
-            .add_choice(command_option_choice("Playing", std::string("ply")))
-            .add_choice(command_option_choice("Listening", std::string("listn")))
-            .add_choice(command_option_choice("Watching", std::string("watch")))
-          );
-          // statusOption #3
-          statusCommand.add_option(
-            command_option(co_string, "text", "Write the status message!", true)
-          );
+            // Build full command list
+            std::vector<slashcommand> all_cmds{
+                pingCommand,
+                statusCommand,
+                // whoamiCommand, // if you want it, uncomment
+                banCommand,
+                timeoutCommand,
+                shutdownCommand
+            };
 
-          // banOption #1
-          banCommand.add_option(
-            command_option(co_user, "userid", "Select a user to be banned", true)
-          );
-          // banOption #2
-          banCommand.add_option(
-            command_option(co_string, "reason", "Write a ban reason", true)
-          );
-          // banOption #3
-          banCommand.add_option(
-            command_option(co_integer, "deletemessages", "Delete the users messages for the past X days (at most 7 days), if unsure enter 0", true)
-          );
-          // timoutOption #1
-          timeoutCommand.add_option(
-            command_option(co_user, "userid", "Who did the oopsie?", true)
-          );
-          // timoutOption #2
-          timeoutCommand.add_option(
-            command_option(co_string, "reason", "Reasoning for the timeout", true)
-          );
-          // timoutOption #3
-          timeoutCommand.add_option(
-            command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
-          );
+                auto music_cmds = fc::music::make_commands(bot);
+                all_cmds.insert(all_cmds.end(), music_cmds.begin(), music_cmds.end());
 
-          std::cout << "Registering slash commands..." << std::endl;
-          bot.global_bulk_command_create({
-            pingCommand,
-            statusCommand,
-            //whoamiCommand,
-            banCommand,
-            timeoutCommand,
-            shutdownCommand
-          });
+            bot.global_bulk_command_create(all_cmds);
 
-          std::cout << "Registered slash commands!" << std::endl;
+            std::cout << "Registered slash commands!" << std::endl;
         }
-      });
+    });
 
-      // Actually starts the bot.
-      bot.start(st_wait);
-
-      return 0;
-    }
