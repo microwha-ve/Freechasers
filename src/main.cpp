@@ -18,6 +18,24 @@
 
 using namespace dpp;
 
+void log_shutdown_to_file(const dpp::user& user) {
+    std::ofstream log("shutdown.log", std::ios::app);
+    if (!log.is_open()) {
+        // If logging fails, just skip it – don't crash the bot
+        return;
+    }
+
+    auto now = std::chrono::system_clock::now();
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+    log << '['
+        << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S")
+        << "] Shutdown requested by "
+        << user.format_username()   // username + discriminator or display name
+        << " (" << user.id << ')'
+        << '\n';
+}
+
 int main() {
 
     cluster bot(std::getenv("token")); // Sets token
@@ -190,6 +208,19 @@ int main() {
             }
           );
         };
+        if (event.command.get_command_name() == "shutdown") {
+            if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
+              event.reply("Mein Fräulein has not given you permission to issue me that order.");
+              return;
+            }
+            
+            log_shutdown_to_file(event.command.get_issuing_user().id);
+            
+            event.reply("Shutting down...");
+            
+            bot.shutdown();
+            
+        }
     });
       // Things that run when the bot is connected to discord api
       bot.on_ready([ & bot, & dev_team](const ready_t & event) {
@@ -231,6 +262,8 @@ int main() {
           slashcommand banCommand("ban", "Ban a user", bot.me.id);
 
           slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
+            
+          slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
 
           // statusOption #1
           statusCommand.add_option(
@@ -282,7 +315,8 @@ int main() {
             statusCommand,
             //whoamiCommand,
             banCommand,
-            timeoutCommand
+            timeoutCommand,
+            shutdownCommand
           });
 
           std::cout << "Registered slash commands!" << std::endl;
