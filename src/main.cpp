@@ -60,7 +60,7 @@ int main() {
         // --- REST PING ---
         bot.rest_ping([&event, gateway_ping_ms](const dpp::confirmation_callback_t& cc) {
             if (cc.is_error()) {
-                event.edit_original_response("Failed to get ping.");
+                event.edit_original_response("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable");
                 return;
             }
 
