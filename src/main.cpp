@@ -214,7 +214,7 @@ int main() {
               return;
             }
             
-            log_shutdown_to_file(event.command.get_issuing_user().id);
+            log_shutdown_to_file(event.command.get_issuing_user());
             
             event.reply("Shutting down...");
             
