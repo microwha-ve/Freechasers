@@ -51,16 +51,13 @@ int main() {
         if (event.command.get_command_name() == "ping") {
             
             event.thinking(true);
-            
+
             // --- GATEWAY PING ---
             double gateway_ping_ms = 0.0;
-
-            const auto& shards = bot.get_shards(); // const std::map<unsigned, dpp::discord_client*>
+            const auto& shards = bot.get_shards();
             if (!shards.empty()) {
-                // take the first shard in the map
                 auto it = shards.begin();
-                if (it->second != nullptr) {
-                    // websocket_ping is in seconds → convert to ms
+                if (it->second) {
                     gateway_ping_ms = it->second->websocket_ping * 1000.0;
                 }
             }
@@ -68,11 +65,12 @@ int main() {
             // --- REST PING ---
             bot.rest_ping([&event, gateway_ping_ms](const dpp::confirmation_callback_t& cc) {
                 if (cc.is_error()) {
-                    event.edit_original_response(dpp::message("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable."));
+                    event.edit_original_response("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable.");
                     return;
                 }
 
-                double rest_ping_ms = std::get<double>(cc.value); // already in ms
+                // THIS is the correct way for your DPP version
+                double rest_ping_ms = cc.get_rest_ping();
 
                 std::ostringstream out;
                 out << "Pong!\n"
@@ -81,9 +79,10 @@ int main() {
                     << "REST: **" << std::fixed << std::setprecision(2)
                     << rest_ping_ms << " ms**";
 
-                event.edit_original_response(dpp::message(out.str()));
+                event.edit_original_response(out.str());
             });
         }
+
 
 
         if (event.command.get_command_name() == "status") {
