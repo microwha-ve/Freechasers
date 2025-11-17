@@ -166,7 +166,7 @@ int main() {
 
           bot.set_audit_reason(banReason);
 
-          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason](const confirmation_callback_t & cc) mutable {
+          bot.guild_ban_add(guildID, userID, days, [event = event, userID, banReason, & bot](const confirmation_callback_t & cc) mutable {
             if (cc.is_error()) {
               event.edit_response("The attempt has failed. The one in question remains unscathed.");
               std::cerr << "Failed to ban user " << userID << "! Err: " << cc.get_error().message << std::endl;
