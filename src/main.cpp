@@ -79,6 +79,7 @@ int main() {
                     event.edit_original_response(dpp::message(out.str()));
                 }
             });
+        }
 
 
 
