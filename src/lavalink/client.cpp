@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 #include <cctype>
+#include <future>   // for std::promise / std::future
 
 using namespace dpp;
 
@@ -106,60 +107,86 @@ dpp::http_headers node::build_default_headers(bool json_body) const {
 
 std::string node::http_request(const std::string& urlpath,
                                const std::string& method,
-                               const std::string& body) const {
-    const bool plaintext = !m_config.https;
+                               const std::string& body) const
+{
+    // Map string -> http_method enum
+    dpp::http_method http_method_enum = dpp::m_get;
+    if (method == "GET") {
+        http_method_enum = dpp::m_get;
+    } else if (method == "POST") {
+        http_method_enum = dpp::m_post;
+    } else if (method == "PUT") {
+        http_method_enum = dpp::m_put;
+    } else if (method == "PATCH") {
+        http_method_enum = dpp::m_patch;
+    } else if (method == "DELETE") {
+        http_method_enum = dpp::m_delete;
+    }
+
+    const std::string full_url =
+        std::string(m_config.https ? "https://" : "http://") +
+        m_config.host + ":" + std::to_string(m_config.port) + urlpath;
 
     m_cluster.log(
         dpp::ll_debug,
         "Lavalink HTTP request: " + method + " " + urlpath +
-        " (host=" + m_config.host + ":" + std::to_string(m_config.port) +
+        " (URL=" + full_url +
         ", body=" + (body.empty() ? "empty" : std::to_string(body.size()) + " bytes") + ")"
     );
 
-    // DPP https_client with cluster* as first arg
-    https_client client(
-        &m_cluster,                                 // creator
-        m_config.host,                              // hostname
-        m_config.port,                              // port
-        urlpath,                                    // URL path
-        method,                                     // verb
-        body,                                       // request body
-        build_default_headers(!body.empty()),       // headers
-        plaintext,                                  // plaintext_connection
-        5,                                          // timeout (seconds)
-        "1.1"                                       // protocol
-        // completion callback omitted (default)
+    dpp::http_headers headers = build_default_headers(!body.empty());
+
+    std::promise<dpp::http_request_completion_t> prom;
+    auto fut = prom.get_future();
+
+    m_cluster.request(
+        full_url,
+        http_method_enum,
+        [this, method, urlpath, full_url, p = std::move(prom)]
+        (const dpp::http_request_completion_t& cc) mutable {
+            std::ostringstream oss;
+            oss << "Lavalink HTTP " << cc.status
+                << " on " << method << " " << urlpath
+                << " (URL=" << full_url
+                << ", response length=" << cc.body.size() << ")";
+            m_cluster.log(dpp::ll_debug, oss.str());
+            p.set_value(cc);
+        },
+        body,
+        body.empty() ? "" : "application/json",
+        headers
     );
 
-    const auto status = client.get_status();
-    const auto content = client.get_content();
+    auto cc = fut.get();
 
-    if (status >= 200 && status < 400) {
+    if (cc.status == 0) {
+        m_cluster.log(
+            dpp::ll_warning,
+            "Lavalink HTTP status 0 (request failed) on " + method + " " + urlpath
+        );
+        return {};
+    }
+
+    if (cc.status >= 200 && cc.status < 400) {
         if (!m_seen_successful_request) {
             m_cluster.log(
                 dpp::ll_info,
                 "Successfully reached Lavalink at " + m_config.host + ":" +
-                std::to_string(m_config.port) + " (status " + std::to_string(status) + ")"
+                std::to_string(m_config.port) + " (status " + std::to_string(cc.status) + ")"
             );
             m_seen_successful_request = true;
-        } else {
-            m_cluster.log(
-                dpp::ll_debug,
-                "Lavalink HTTP OK " + std::to_string(status) +
-                " on " + method + " " + urlpath
-            );
         }
     } else {
-        std::string snippet = content.substr(0, 200);
+        std::string snippet = cc.body.substr(0, 200);
         m_cluster.log(
             dpp::ll_warning,
-            "Lavalink HTTP " + std::to_string(status) +
+            "Lavalink HTTP " + std::to_string(cc.status) +
             " on " + method + " " + urlpath +
             " response: " + snippet
         );
     }
 
-    return content;
+    return cc.body;
 }
 
 // ---------- Voice glue ----------
@@ -307,10 +334,20 @@ std::vector<track> node::load_tracks(const std::string& identifier) const {
     }
 
     if (!tracks_json.is_array()) {
-        m_cluster.log(
-            dpp::ll_warning,
-            "Unexpected JSON structure from /loadtracks for identifier: " + identifier
-        );
+        // Also log error responses (loadType:error) for debugging
+        if (j.contains("loadType") && j["loadType"].is_string()) {
+            std::string lt = j["loadType"].get<std::string>();
+            m_cluster.log(
+                dpp::ll_warning,
+                "Unexpected loadType from /loadtracks for identifier '" +
+                identifier + "': " + lt + " (raw: " + raw.substr(0, 200) + ")"
+            );
+        } else {
+            m_cluster.log(
+                dpp::ll_warning,
+                "Unexpected JSON structure from /loadtracks for identifier: " + identifier
+            );
+        }
         return result;
     }
 
@@ -455,3 +492,4 @@ void node::seek(dpp::snowflake guild_id, std::int64_t position_ms) const {
 }
 
 } // namespace fc::lavalink
+
