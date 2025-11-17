@@ -65,6 +65,9 @@ private:
     node_config m_config;
     std::unordered_map<dpp::snowflake, voice_state_data> m_voice_state; // by guild id
 
+    // first successful HTTP request marker (for "connected to Lavalink" log)
+    mutable bool m_seen_successful_request = false;
+
     dpp::http_headers build_default_headers(bool json_body) const;
     std::string http_request(const std::string& urlpath,
                              const std::string& method,

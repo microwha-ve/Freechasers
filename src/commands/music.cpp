@@ -5,6 +5,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
 
 namespace fc::music {
 
@@ -25,7 +26,6 @@ static void reply_ephemeral(const dpp::slashcommand_t& event,
 }
 
 static std::string make_identifier(const std::string& query) {
-    // If it looks like a URL, use as-is; otherwise treat as ytsearch:
     if (query.rfind("http://", 0) == 0 || query.rfind("https://", 0) == 0) {
         return query;
     }
@@ -46,10 +46,15 @@ static void handle_play(const dpp::slashcommand_t& event,
 
     const dpp::snowflake guild_id = event.command.guild_id;
 
+    std::cout << "[Music] /play by " << event.command.get_issuing_user().id
+              << " in guild " << guild_id
+              << " query='" << query << "'" << std::endl;
+
     std::string identifier = make_identifier(query);
     auto tracks = lavalink.load_tracks(identifier);
 
     if (tracks.empty()) {
+        std::cout << "[Music] /play found no tracks for '" << query << "'" << std::endl;
         reply_ephemeral(event, "No tracks found for that query.");
         return;
     }
@@ -60,9 +65,15 @@ static void handle_play(const dpp::slashcommand_t& event,
     st.queue.push_back(tracks.front());
 
     if (start_immediately) {
+        std::cout << "[Music] /play starting track now: '"
+                  << tracks.front().title << "'" << std::endl;
         lavalink.play(guild_id, st.queue.front().encoded);
         lavalink.set_volume(guild_id, st.volume);
         st.paused = false;
+    } else {
+        std::cout << "[Music] /play enqueued track at position "
+                  << st.queue.size() << ": '"
+                  << tracks.front().title << "'" << std::endl;
     }
 
     std::ostringstream msg;
@@ -88,6 +99,8 @@ static void handle_pause(const dpp::slashcommand_t& event,
     auto it = g_guild_state.find(guild_id);
 
     if (it == g_guild_state.end() || it->second.queue.empty()) {
+        std::cout << "[Music] /pause but nothing is playing in guild "
+                  << guild_id << std::endl;
         reply_ephemeral(event, "Nothing is currently playing.");
         return;
     }
@@ -98,8 +111,10 @@ static void handle_pause(const dpp::slashcommand_t& event,
     lavalink.pause(guild_id, st.paused);
 
     if (st.paused) {
+        std::cout << "[Music] /pause → paused in guild " << guild_id << std::endl;
         event.reply("Paused playback.");
     } else {
+        std::cout << "[Music] /pause → resumed in guild " << guild_id << std::endl;
         event.reply("Resumed playback.");
     }
 }
@@ -112,6 +127,8 @@ static void handle_stop(const dpp::slashcommand_t& event,
     }
 
     const dpp::snowflake guild_id = event.command.guild_id;
+
+    std::cout << "[Music] /stop in guild " << guild_id << std::endl;
 
     lavalink.stop(guild_id);
     g_guild_state.erase(guild_id);
@@ -138,6 +155,9 @@ static void handle_volume(const dpp::slashcommand_t& event,
     auto& st = g_guild_state[guild_id];
     st.volume = level;
 
+    std::cout << "[Music] /volume in guild " << guild_id
+              << " set to " << level << std::endl;
+
     lavalink.set_volume(guild_id, level);
 
     std::ostringstream msg;
@@ -155,11 +175,15 @@ static void handle_queue(const dpp::slashcommand_t& event) {
     auto it = g_guild_state.find(guild_id);
 
     if (it == g_guild_state.end() || it->second.queue.empty()) {
+        std::cout << "[Music] /queue empty for guild " << guild_id << std::endl;
         reply_ephemeral(event, "The queue is currently empty.");
         return;
     }
 
     const auto& st = it->second;
+
+    std::cout << "[Music] /queue requested in guild " << guild_id
+              << ", " << st.queue.size() << " track(s) queued" << std::endl;
 
     dpp::embed e;
     e.set_title("Music queue");
