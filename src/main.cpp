@@ -396,6 +396,10 @@ int main() {
             bot.global_bulk_command_create(all_cmds);
             
             std::cout << "Registered slash commands!" << std::endl;
-        })
-    });
+        } // <-- close the if, only }
 
+            }); // <-- close the lambda and on_ready with );
+
+            bot.start();
+            return 0;
+        }
