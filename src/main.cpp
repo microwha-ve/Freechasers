@@ -52,36 +52,33 @@ int main() {
             
             event.thinking(true);
 
-            // --- GATEWAY PING ---
-            double gateway_ping_ms = 0.0;
-            const auto& shards = bot.get_shards();
-            if (!shards.empty()) {
-                auto it = shards.begin();
-                if (it->second) {
-                    gateway_ping_ms = it->second->websocket_ping * 1000.0;
+                    // ---- GATEWAY PING ----
+                    double gateway_ping_ms = 0.0;
+
+                    const auto& shards = bot.get_shards();  // const std::map<unsigned, dpp::discord_client*>
+                    if (!shards.empty()) {
+                        auto it = shards.begin();          // just take the first shard
+                        if (it->second) {
+                            // websocket_ping is in seconds → convert to ms
+                            gateway_ping_ms = it->second->websocket_ping * 1000.0;
+                        }
+                    }
+
+                    // ---- REST PING ----
+                    // In your DPP version this is a plain member, in seconds.
+                    double rest_ping_ms = bot.rest_ping * 1000.0;
+
+                    std::ostringstream out;
+                    out << "Pong!\n"
+                        << "Gateway: **" << std::fixed << std::setprecision(2)
+                        << gateway_ping_ms << " ms**\n"
+                        << "REST: **" << std::fixed << std::setprecision(2)
+                        << rest_ping_ms << " ms**";
+
+                    // edit_original_response needs a dpp::message, not a string literal
+                    event.edit_original_response(dpp::message(out.str()));
                 }
-            }
-
-            // --- REST PING ---
-            bot.rest_ping([&event, gateway_ping_ms](const dpp::confirmation_callback_t& cc) {
-                if (cc.is_error()) {
-                    event.edit_original_response("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable.");
-                    return;
-                }
-
-                // THIS is the correct way for your DPP version
-                double rest_ping_ms = cc.get_rest_ping();
-
-                std::ostringstream out;
-                out << "Pong!\n"
-                    << "Gateway: **" << std::fixed << std::setprecision(2)
-                    << gateway_ping_ms << " ms**\n"
-                    << "REST: **" << std::fixed << std::setprecision(2)
-                    << rest_ping_ms << " ms**";
-
-                event.edit_original_response(out.str());
             });
-        }
 
 
 
