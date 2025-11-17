@@ -331,55 +331,55 @@ int main() {
         // Slash commands
         if (run_once<struct register_bot_commands>()) {
             std::cout << "Registering slash commands..." << std::endl;
-
+            
             slashcommand pingCommand("ping", "Pong!", bot.me.id);
             slashcommand statusCommand("status", "Set bot status!", bot.me.id);
             slashcommand whoamiCommand("whoami", "Who are you? Shouldn't like you know that?", bot.me.id);
             slashcommand banCommand("ban", "Ban a user", bot.me.id);
             slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
             slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
-
+            
             // status options
             statusCommand.add_option(
-                command_option(co_string, "status", "Select a status", true)
-                    .add_choice(command_option_choice("Online", std::string("onl")))
-                    .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
-                    .add_choice(command_option_choice("Idle", std::string("idle")))
-            );
+                                     command_option(co_string, "status", "Select a status", true)
+                                     .add_choice(command_option_choice("Online", std::string("onl")))
+                                     .add_choice(command_option_choice("Do Not Disturb", std::string("dnd")))
+                                     .add_choice(command_option_choice("Idle", std::string("idle")))
+                                     );
             statusCommand.add_option(
-                command_option(co_string, "activity", "Select an activity for the status", true)
-                    .add_choice(command_option_choice("Playing", std::string("ply")))
-                    .add_choice(command_option_choice("Listening", std::string("listn")))
-                    .add_choice(command_option_choice("Watching", std::string("watch")))
-            );
+                                     command_option(co_string, "activity", "Select an activity for the status", true)
+                                     .add_choice(command_option_choice("Playing", std::string("ply")))
+                                     .add_choice(command_option_choice("Listening", std::string("listn")))
+                                     .add_choice(command_option_choice("Watching", std::string("watch")))
+                                     );
             statusCommand.add_option(
-                command_option(co_string, "text", "Write the status message!", true)
-            );
-
+                                     command_option(co_string, "text", "Write the status message!", true)
+                                     );
+            
             // ban options
             banCommand.add_option(
-                command_option(co_user, "userid", "Select a user to be banned", true)
-            );
+                                  command_option(co_user, "userid", "Select a user to be banned", true)
+                                  );
             banCommand.add_option(
-                command_option(co_string, "reason", "Write a ban reason", true)
-            );
+                                  command_option(co_string, "reason", "Write a ban reason", true)
+                                  );
             banCommand.add_option(
-                command_option(co_integer, "deletemessages",
-                               "Delete the users messages for the past X days (at most 7 days), if unsure enter 0",
-                               true)
-            );
-
+                                  command_option(co_integer, "deletemessages",
+                                                 "Delete the users messages for the past X days (at most 7 days), if unsure enter 0",
+                                                 true)
+                                  );
+            
             // timeout options
             timeoutCommand.add_option(
-                command_option(co_user, "userid", "Who did the oopsie?", true)
-            );
+                                      command_option(co_user, "userid", "Who did the oopsie?", true)
+                                      );
             timeoutCommand.add_option(
-                command_option(co_string, "reason", "Reasoning for the timeout", true)
-            );
+                                      command_option(co_string, "reason", "Reasoning for the timeout", true)
+                                      );
             timeoutCommand.add_option(
-                command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
-            );
-
+                                      command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
+                                      );
+            
             // Build full command list
             std::vector<slashcommand> all_cmds{
                 pingCommand,
@@ -389,12 +389,13 @@ int main() {
                 timeoutCommand,
                 shutdownCommand
             };
-
-                auto music_cmds = fc::music::make_commands(bot);
-                all_cmds.insert(all_cmds.end(), music_cmds.begin(), music_cmds.end());
-
+            
+            auto music_cmds = fc::music::make_commands(bot);
+            all_cmds.insert(all_cmds.end(), music_cmds.begin(), music_cmds.end());
+            
             bot.global_bulk_command_create(all_cmds);
-
+            
             std::cout << "Registered slash commands!" << std::endl;
+        })
     });
 
