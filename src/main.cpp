@@ -45,27 +45,37 @@ int main() {
     std::unordered_set < snowflake > dev_team;
 
     // Defines what the commands will do
-    bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
+    if (event.command.get_command_name() == "ping") {
 
-        if (event.command.get_command_name() == "ping") {
-            double gateway_ping = 0.0;
-            if(!bot.shards.empty()){
-                gateway_ping = bot.shards[0]->websocket_ping;
-            }
-            
-            bot.rest_ping([&event, gateway_ping](const confirmation_callback_t& cc) {
-                if (cc.is_error()) {
-                    event.reply("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable");
-                    return;
-                }
-                
-                double rest_ping = std::get<double>(cc.value);
-                
-                std::ostringstream out;
-                out << "Pong!\n" << "Gateway: **"<<std::fixed << std::setprecision(2) << (gateway_ping * 1000.0) << "ms**\n" << "REST: **" << std::fixed << std:setprecision(2) << rest_ping << "ms**";
-                event.reply(out.str());
-            });
+        event.thinking(true); // show "thinking..."
+
+        // --- GATEWAY PING ---
+        double gateway_ping_ms = 0.0;
+
+        const auto& shards = bot.get_shards();
+        if (!shards.empty() && shards[0]) {
+            gateway_ping_ms = shards[0]->websocket_ping * 1000.0; // seconds → ms
         }
+
+        // --- REST PING ---
+        bot.rest_ping([&event, gateway_ping_ms](const dpp::confirmation_callback_t& cc) {
+            if (cc.is_error()) {
+                event.edit_original_response("Failed to get ping.");
+                return;
+            }
+
+            double rest_ping_ms = std::get<double>(cc.value);
+
+            std::ostringstream out;
+            out << "Pong!\n"
+                << "Gateway: **" << std::fixed << std::setprecision(2)
+                << gateway_ping_ms << " ms**\n"
+                << "REST: **" << std::fixed << std::setprecision(2)
+                << rest_ping_ms << " ms**";
+
+            event.edit_original_response(dpp::message(out.str()));
+        });
+    }
 
         if (event.command.get_command_name() == "status") {
 
