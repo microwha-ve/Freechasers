@@ -218,7 +218,9 @@ int main() {
             
             event.reply("Shutting down...");
             
-            bot.shutdown();
+            bot.start_timer([&bot](timer timer){
+                bot.shutdown();
+            }, 3.0);
             
         }
     });
