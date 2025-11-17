@@ -48,7 +48,23 @@ int main() {
     bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
 
         if (event.command.get_command_name() == "ping") {
-          event.reply("Pong!");
+            double gateway_ping = 0.0;
+            if(!bot.shards.empty()){
+                gateway_ping = bot.shards[0]->websocket_ping;
+            }
+            
+            bot.rest_ping([&event, gateway_ping](const confirmation_callback_t& cc) {
+                if (cc.is_error()) {
+                    event.reply("Mein Fräulein wishes to inform you that the 'ping' is currently unavailable");
+                    return;
+                }
+                
+                double rest_ping = std::get<double>(cc.value);
+                
+                std::ostringstream out;
+                out << "Pong!\n" << "Gateway: **"<<std::fixed << std::setprecision(2) << (gateway_ping * 1000.0) << "ms**\n" << "REST: **" << std::fixed << std:setprecision(2) << rest_ping << "ms**";
+                event.reply(out.str());
+            });
         }
 
         if (event.command.get_command_name() == "status") {
@@ -208,6 +224,7 @@ int main() {
             }
           );
         };
+        
         if (event.command.get_command_name() == "shutdown") {
             if (dev_team.find(event.command.get_issuing_user().id) == dev_team.end()) {
               event.reply("Mein Fräulein has not given you permission to issue me that order.");
