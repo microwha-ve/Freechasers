@@ -272,33 +272,37 @@ int main() {
     });
 
     // ---------- on_ready ----------
-    bot.on_ready([&bot, &dev_team](const ready_t& event) {
-        (void)event;
+    bot.on_ready([&bot, &dev_team, &lavalink](const ready_t& event) {
+    (void)event;
 
-        std::cout << "Logged in as " << bot.me.username << "!" << std::endl;
+    std::cout << "Logged in as " << bot.me.username << "!" << std::endl;
 
-        // Load Dev Team members
-        std::cout << "Loading Dev Team members..." << std::endl;
-        bot.current_application_get([&](const confirmation_callback_t& cc) {
-            if (cc.is_error()) {
-                std::cerr << "Failed to fetch app info (team check unavailable)" << std::endl;
-                return;
-            }
+    // Make sure Lavalink session exists (now safe, bot is running)
+    lavalink.ensure_session();
 
-            auto app = std::get<application>(cc.value);
-            for (auto& member : app.team.members) {
-                dev_team.insert(member.member_user.id);
-                std::cout << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
-            }
-            std::cout << "Dev Team members loaded!" << std::endl;
-        });
-
-        // Presence
-        if (run_once<struct set_status>()) {
-            std::cout << "Setting Presence status..." << std::endl;
-            bot.set_presence(presence(ps_dnd, at_game, "Traveling from the Immernarchtreich"));
-            std::cout << "Presence status set!" << std::endl;
+    // Load Dev Team members
+    std::cout << "Loading Dev Team members..." << std::endl;
+    bot.current_application_get([&](const confirmation_callback_t& cc) {
+        if (cc.is_error()) {
+            std::cerr << "Failed to fetch app info (team check unavailable)" << std::endl;
+            return;
         }
+
+        auto app = std::get<application>(cc.value);
+        for (auto& member : app.team.members) {
+            dev_team.insert(member.member_user.id);
+            std::cout << "Added " << member.member_user.id << " to the Dev Team List!" << std::endl;
+        }
+        std::cout << "Dev Team members loaded!" << std::endl;
+    });
+
+    // Presence
+    if (run_once<struct set_status>()) {
+        std::cout << "Setting Presence status..." << std::endl;
+        bot.set_presence(presence(ps_dnd, at_game, "Traveling from the Immernarchtreich"));
+        std::cout << "Presence status set!" << std::endl;
+    }
+
 
         // Slash commands
         if (run_once<struct register_bot_commands>()) {
