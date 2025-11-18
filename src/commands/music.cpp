@@ -5,6 +5,8 @@
 
 #include <sstream>
 #include <optional>
+#include <deque>
+#include <unordered_map>
 
 using dpp::slashcommand;
 using dpp::slashcommand_t;
@@ -23,35 +25,28 @@ guild_state& get_state(dpp::snowflake guild_id) {
 }
 
 /// Try to connect the bot to the issuing user's voice channel.
-bool join_users_voice_channel(const dpp::slashcommand_t& ev) {
-    dpp::cluster* bot = ev.from->creator;
-    if (!bot) {
-        return false;
-    }
-
+bool join_users_voice_channel(const dpp::slashcommand_t& ev, dpp::cluster& bot) {
     dpp::snowflake guild_id = ev.command.guild_id;
     dpp::snowflake user_id  = ev.command.get_issuing_user().id;
 
-    auto git = bot->guilds.find(guild_id);
-    if (git == bot->guilds.end() || !git->second) {
-        return false;
-    }
-
-    dpp::guild* g = git->second.get();
+    dpp::guild* g = dpp::find_guild(guild_id);
     if (!g) {
+        bot.log(dpp::ll_warning, "join_users_voice_channel: guild not in cache");
         return false;
     }
 
-    // This is the DPP 10.x+ helper: it finds the member's voice channel and joins.
-    bool ok = g->connect_member_voice(*bot, user_id, false, false, false);
+    bool ok = g->connect_member_voice(bot, user_id, false, false, false);
     if (!ok) {
-        bot->log(dpp::ll_warning,
-                 "connect_member_voice() returned false (user not in VC or cannot join).");
+        bot.log(dpp::ll_warning,
+                "connect_member_voice() failed (user not in voice channel or cannot join).");
     }
     return ok;
 }
 
-void handle_play(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
+void handle_play(const dpp::slashcommand_t& ev,
+                 dpp::cluster& bot,
+                 fc::lavalink::node& lavalink)
+{
     ev.thinking(true);
 
     dpp::snowflake guild_id = ev.command.guild_id;
@@ -63,12 +58,12 @@ void handle_play(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
         identifier = "ytsearch:" + query;
     }
 
-    if (ev.from && ev.from->creator) {
+    {
         std::ostringstream log;
         log << "[Music] /play by " << ev.command.get_issuing_user().id
             << " in guild " << guild_id
             << " query='" << query << "'";
-        ev.from->creator->log(dpp::ll_info, log.str());
+        bot.log(dpp::ll_info, log.str());
     }
 
     fc::lavalink::load_result res = lavalink.load_tracks(identifier);
@@ -86,12 +81,11 @@ void handle_play(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
         return;
     }
 
-    // Use the first track for now.
     const fc::lavalink::track& first = res.tracks.front();
     auto& st = get_state(guild_id);
     st.queue.push_back(first);
 
-    if (!join_users_voice_channel(ev)) {
+    if (!join_users_voice_channel(ev, bot)) {
         ev.edit_original_response(dpp::message(
             "You must be in a voice channel I can join before I can play anything."
         ));
@@ -119,7 +113,10 @@ void handle_play(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
     ev.edit_original_response(dpp::message(msg.str()));
 }
 
-void handle_pause(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
+void handle_pause(const dpp::slashcommand_t& ev,
+                  dpp::cluster&,
+                  fc::lavalink::node& lavalink)
+{
     ev.thinking(true);
 
     dpp::snowflake guild_id = ev.command.guild_id;
@@ -146,7 +143,10 @@ void handle_pause(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
     }
 }
 
-void handle_stop(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
+void handle_stop(const dpp::slashcommand_t& ev,
+                 dpp::cluster&,
+                 fc::lavalink::node& lavalink)
+{
     ev.thinking(true);
 
     dpp::snowflake guild_id = ev.command.guild_id;
@@ -168,7 +168,10 @@ void handle_stop(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
     ev.edit_original_response(dpp::message("Stopped playback and cleared the queue."));
 }
 
-void handle_volume(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
+void handle_volume(const dpp::slashcommand_t& ev,
+                   dpp::cluster&,
+                   fc::lavalink::node& lavalink)
+{
     ev.thinking(true);
 
     dpp::snowflake guild_id = ev.command.guild_id;
@@ -189,7 +192,10 @@ void handle_volume(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) 
     ev.edit_original_response(dpp::message(msg.str()));
 }
 
-void handle_queue(const dpp::slashcommand_t& ev, fc::lavalink::node&) {
+void handle_queue(const dpp::slashcommand_t& ev,
+                  dpp::cluster&,
+                  fc::lavalink::node&)
+{
     ev.thinking(true);
 
     dpp::snowflake guild_id = ev.command.guild_id;
@@ -262,19 +268,22 @@ std::vector<dpp::slashcommand> make_commands(dpp::cluster& bot) {
     return cmds;
 }
 
-void route_slashcommand(const dpp::slashcommand_t& ev, fc::lavalink::node& lavalink) {
+void route_slashcommand(const dpp::slashcommand_t& ev,
+                        fc::lavalink::node& lavalink,
+                        dpp::cluster& bot)
+{
     const std::string& name = ev.command.get_command_name();
 
     if (name == "play") {
-        handle_play(ev, lavalink);
+        handle_play(ev, bot, lavalink);
     } else if (name == "pause") {
-        handle_pause(ev, lavalink);
+        handle_pause(ev, bot, lavalink);
     } else if (name == "stop") {
-        handle_stop(ev, lavalink);
+        handle_stop(ev, bot, lavalink);
     } else if (name == "volume") {
-        handle_volume(ev, lavalink);
+        handle_volume(ev, bot, lavalink);
     } else if (name == "queue") {
-        handle_queue(ev, lavalink);
+        handle_queue(ev, bot, lavalink);
     }
 }
 
