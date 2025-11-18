@@ -80,7 +80,7 @@ int main() {
 
     // Defines what the commands will do
     bot.on_slashcommand([&bot, &dev_team, &lavalink](const slashcommand_t& event) {
-        fc::music::route_slashcommand(event, lavalink, bot);
+        fc::music::route_slashcommand(event, lavalink);
 
 
         if (event.command.get_command_name() == "ping") {
