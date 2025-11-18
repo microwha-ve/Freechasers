@@ -1,309 +1,342 @@
-#include "fc/commands/music.hpp"
+#include "fc/lavalink/client.hpp"
+
+#include <dpp/json.h>
 
 #include <sstream>
-#include <optional>
+#include <future>
+#include <map>
 
-using namespace dpp;
+namespace fc::lavalink {
 
-namespace fc::music {
-
-std::unordered_map<dpp::snowflake, guild_music_state> g_states;
-
-static guild_music_state& get_state(dpp::snowflake guild_id) {
-    return g_states[guild_id];
+node::node(dpp::cluster& cluster, const node_config& cfg)
+    : m_cluster(cluster)
+    , m_cfg(cfg)
+    , m_session_id(cfg.session_id)
+{
+    std::ostringstream oss;
+    oss << "Initialising Lavalink node at "
+        << (m_cfg.https ? "https://" : "http://")
+        << m_cfg.host << ":" << m_cfg.port
+        << " with session_id='" << m_session_id << "'";
+    m_cluster.log(dpp::ll_info, oss.str());
 }
 
-// Join the same voice channel as the invoking user using guild::connect_member_voice
-static bool join_users_voice_channel(const dpp::slashcommand_t& ev) {
-    dpp::snowflake guild_id = ev.command.guild_id;
-    if (!guild_id) {
-        return false;
+void node::handle_voice_state_update(const dpp::voice_state_update_t& ev)
+{
+    // Only cache our own bot's voice state
+    if (ev.state.user_id != m_cluster.me.id) {
+        return;
     }
 
-    dpp::guild* g = dpp::find_guild(guild_id);
-    if (!g) {
-        return false;
-    }
+    std::lock_guard<std::mutex> lock(m_voice_mutex);
+    auto& vs = m_voice_states[ev.state.guild_id];
+    vs.session_id = ev.state.session_id;
 
-    dpp::snowflake user_id = ev.command.get_issuing_user().id;
-
-    // Need the cluster reference for connect_member_voice
-    dpp::cluster& bot = *ev.from()->creator;
-
-    // Signature (in your DPP):
-    // bool connect_member_voice(const cluster& owner, snowflake user_id,
-    //                           bool self_mute = false, bool self_deaf = false, bool dave = false);
-    bool ok = g->connect_member_voice(bot, user_id, false, false);
-    return ok;
+    std::ostringstream oss;
+    oss << "Cached voice_state for guild " << ev.state.guild_id
+        << " session_id=" << vs.session_id;
+    m_cluster.log(dpp::ll_debug, oss.str());
 }
 
-static void handle_play(const dpp::slashcommand_t& ev,
-                        fc::lavalink::node& lavalink) {
-    ev.thinking(true);
+void node::handle_voice_server_update(const dpp::voice_server_update_t& ev)
+{
+    std::lock_guard<std::mutex> lock(m_voice_mutex);
+    auto& vs = m_voice_states[ev.guild_id];
+    vs.token    = ev.token;
+    vs.endpoint = ev.endpoint;
 
-    dpp::snowflake guild_id = ev.command.guild_id;
-    if (!guild_id) {
-        ev.edit_original_response(dpp::message("This command can only be used in a server."));
-        return;
+    std::ostringstream oss;
+    oss << "Cached voice_server for guild " << ev.guild_id
+        << " token=" << (!vs.token.empty() ? "<set>" : "<empty>")
+        << " endpoint=" << vs.endpoint;
+    m_cluster.log(dpp::ll_debug, oss.str());
+}
+
+std::optional<node::voice_state> node::get_voice_state_locked(dpp::snowflake guild_id) const
+{
+    auto it = m_voice_states.find(guild_id);
+    if (it == m_voice_states.end()) {
+        return std::nullopt;
+    }
+    const auto& vs = it->second;
+    if (vs.token.empty() || vs.endpoint.empty() || vs.session_id.empty()) {
+        return std::nullopt;
+    }
+    return vs;
+}
+
+std::string node::http_request(const std::string& method,
+                               const std::string& urlpath,
+                               const std::string& body_json) const
+{
+    dpp::http_method http_method_enum = dpp::m_get;
+    if (method == "POST") {
+        http_method_enum = dpp::m_post;
+    } else if (method == "PATCH") {
+        http_method_enum = dpp::m_patch;
+    } else if (method == "DELETE") {
+        http_method_enum = dpp::m_delete;
+    } else if (method == "PUT") {
+        http_method_enum = dpp::m_put;
     }
 
-    // Get cluster for logging etc.
-    dpp::cluster& bot = *ev.from()->creator;
+    const std::string scheme   = m_cfg.https ? "https://" : "http://";
+    const std::string full_url = scheme + m_cfg.host + ":" + std::to_string(m_cfg.port) + urlpath;
 
-    // Ensure user is in voice and join their channel
-    if (!join_users_voice_channel(ev)) {
-        ev.edit_original_response(
-            dpp::message("You must be connected to a voice channel first."));
-        return;
+    std::multimap<std::string, std::string> headers;
+    headers.emplace("Authorization", m_cfg.password);
+    headers.emplace("User-Id",       m_cluster.me.id.str());
+    headers.emplace("Client-Name",   "FreechasersBot");
+
+    auto prom = std::make_shared<std::promise<dpp::http_request_completion_t>>();
+    auto fut  = prom->get_future();
+
+    m_cluster.log(
+        dpp::ll_debug,
+        "Lavalink HTTP request: " + method + " " + urlpath +
+        " (URL=" + full_url + ", body=" +
+        (body_json.empty() ? "empty" : std::to_string(body_json.size()) + " bytes") + ")"
+    );
+
+    m_cluster.request(
+        full_url,
+        http_method_enum,
+        [this, method, urlpath, full_url, prom](const dpp::http_request_completion_t& cc) {
+            std::ostringstream oss;
+            oss << "Lavalink HTTP " << cc.status
+                << " on " << method << " " << urlpath
+                << " (URL=" << full_url
+                << ", response length=" << cc.body.size() << ")";
+
+            if (cc.status == 0) {
+                m_cluster.log(dpp::ll_warning, oss.str() + " (request failed)");
+            } else if (cc.status >= 400) {
+                m_cluster.log(dpp::ll_warning, oss.str() + " response: " + cc.body);
+            } else {
+                m_cluster.log(dpp::ll_debug, oss.str());
+            }
+
+            prom->set_value(cc);
+        },
+        body_json,
+        body_json.empty() ? "" : "application/json",
+        headers
+    );
+
+    const auto cc = fut.get();
+    if (cc.status == 0 || cc.body.empty()) {
+        return {};
     }
+    return cc.body;
+}
 
-    // Resolve query
-    std::string query = std::get<std::string>(ev.get_parameter("query"));
-    std::string identifier = query;
-    if (identifier.rfind("http://", 0) != 0 &&
-        identifier.rfind("https://", 0) != 0) {
-        identifier = "ytsearch:" + identifier;
-    }
+load_result node::load_tracks(const std::string& identifier) const
+{
+    load_result res;
 
-    bot.log(dpp::ll_info, "[Music] /play by " +
-                           ev.command.get_issuing_user().id.str() +
-                           " in guild " + guild_id.str() +
-                           " query='" + query + "'");
+    m_cluster.log(
+        dpp::ll_debug,
+        "Requesting /v4/loadtracks for identifier: " + identifier
+    );
 
-    // Load tracks from Lavalink (new API: returns load_result)
-    fc::lavalink::load_result result = lavalink.load_tracks(identifier);
+    std::string path = "/v4/loadtracks?identifier=" + dpp::url_encode(identifier);
+    std::string body = http_request("GET", path, {});
 
-    if (result.type == fc::lavalink::load_type::error) {
-        ev.edit_original_response(
-            dpp::message("Failed to load tracks for that query."));
-        return;
-    }
-
-    if (result.tracks.empty()) {
-        ev.edit_original_response(
-            dpp::message("No tracks found for '" + query + "'."));
-        return;
-    }
-
-    // Pick the first track
-    const fc::lavalink::track& first = result.tracks.front();
-    guild_music_state& st = get_state(guild_id);
-    st.queue.push_back(first);
-
-    {
-        std::ostringstream log;
-        log << "[Music] /play resolved to '" << first.title << "'";
-        bot.log(dpp::ll_info, log.str());
-    }
-
-    bool started_now = !st.playing;
-    if (started_now) {
-        st.playing = true;
-
-        // bool play(snowflake guild_id,
-        //           const std::string& encoded_track,
-        //           bool no_replace,
-        //           std::optional<long int> start_position_ms,
-        //           std::optional<int> volume);
-        bool ok = lavalink.play(
-            guild_id,
-            first.encoded,
-            /*no_replace*/ false,
-            std::nullopt,
-            st.volume   // start at current volume
+    if (body.empty()) {
+        m_cluster.log(
+            dpp::ll_warning,
+            "Empty response from Lavalink /loadtracks for identifier: " + identifier
         );
+        res.type = load_type::empty;
+        return res;
+    }
 
-        if (!ok) {
-            st.playing = false;
-            ev.edit_original_response(
-                dpp::message("Failed to start playback on Lavalink (session/voice not ready)."));
-            return;
+    using json = nlohmann::json_abi_v3_11_2::json;
+
+    json j;
+    try {
+        j = json::parse(body);
+    } catch (const std::exception& e) {
+        m_cluster.log(
+            dpp::ll_warning,
+            std::string("Failed to parse Lavalink /loadtracks response: ") + e.what()
+        );
+        res.type = load_type::error;
+        res.error_message = "Failed to parse Lavalink response";
+        return res;
+    }
+
+    const std::string load_type_str = j.value("loadType", "");
+
+    if (load_type_str == "track") {
+        res.type = load_type::track;
+    } else if (load_type_str == "search") {
+        res.type = load_type::search;
+    } else if (load_type_str == "playlist") {
+        res.type = load_type::playlist;
+    } else if (load_type_str == "empty") {
+        res.type = load_type::empty;
+    } else if (load_type_str == "error") {
+        res.type = load_type::error;
+        if (j.contains("data") && j["data"].is_object()) {
+            const auto& data = j["data"];
+            res.error_message = data.value("message", "Unknown Lavalink error");
+        } else {
+            res.error_message = "Unknown Lavalink error (no data field)";
         }
-
-        std::ostringstream msg;
-        msg << "Enqueued: **" << first.title << "** (now playing)";
-        ev.edit_original_response(dpp::message(msg.str()));
     } else {
-        std::ostringstream msg;
-        msg << "Enqueued: **" << first.title << "**";
-        ev.edit_original_response(dpp::message(msg.str()));
-    }
-}
-
-static void handle_pause(const dpp::slashcommand_t& ev,
-                         fc::lavalink::node& lavalink) {
-    ev.thinking(true);
-
-    dpp::snowflake guild_id = ev.command.guild_id;
-    if (!guild_id) {
-        ev.edit_original_response(dpp::message("This command can only be used in a server."));
-        return;
+        res.type = load_type::error;
+        res.error_message = "Unknown loadType: " + load_type_str;
     }
 
-    bool pause = std::get<bool>(ev.get_parameter("pause"));
+    if (res.type == load_type::track ||
+        res.type == load_type::search ||
+        res.type == load_type::playlist)
+    {
+        const auto& data = j["data"];
+        if (data.is_array()) {
+            for (const auto& el : data) {
+                track t;
+                t.encoded = el.value("encoded", "");
 
-    if (!lavalink.pause(guild_id, pause)) {
-        ev.edit_original_response(dpp::message("Failed to update pause state."));
-        return;
-    }
+                if (el.contains("info") && el["info"].is_object()) {
+                    const auto& info = el["info"];
+                    t.title      = info.value("title", "");
+                    t.author     = info.value("author", "");
+                    t.length_ms  = info.value("length", 0);
+                    t.uri        = info.value("uri", "");
+                }
 
-    ev.edit_original_response(
-        dpp::message(pause ? "Paused playback." : "Resumed playback."));
-}
-
-static void handle_stop(const dpp::slashcommand_t& ev,
-                        fc::lavalink::node& lavalink) {
-    ev.thinking(true);
-
-    dpp::snowflake guild_id = ev.command.guild_id;
-    if (!guild_id) {
-        ev.edit_original_response(dpp::message("This command can only be used in a server."));
-        return;
-    }
-
-    lavalink.stop(guild_id);
-    auto it = g_states.find(guild_id);
-    if (it != g_states.end()) {
-        it->second.queue.clear();
-        it->second.playing = false;
-    }
-
-    ev.edit_original_response(dpp::message("Stopped playback and cleared the queue."));
-}
-
-static void handle_volume(const dpp::slashcommand_t& ev,
-                          fc::lavalink::node& lavalink) {
-    ev.thinking(true);
-
-    dpp::snowflake guild_id = ev.command.guild_id;
-    if (!guild_id) {
-        ev.edit_original_response(dpp::message("This command can only be used in a server."));
-        return;
-    }
-
-    int vol = static_cast<int>(std::get<int64_t>(ev.get_parameter("level")));
-    if (vol < 0) vol = 0;
-    if (vol > 1000) vol = 1000;
-
-    guild_music_state& st = get_state(guild_id);
-    st.volume = vol;
-
-    if (!lavalink.set_volume(guild_id, vol)) {
-        ev.edit_original_response(dpp::message("Failed to set volume on Lavalink."));
-        return;
-    }
-
-    std::ostringstream msg;
-    msg << "Volume set to **" << vol << "%**.";
-    ev.edit_original_response(dpp::message(msg.str()));
-}
-
-static void handle_queue(const dpp::slashcommand_t& ev) {
-    ev.thinking(true);
-
-    dpp::snowflake guild_id = ev.command.guild_id;
-    if (!guild_id) {
-        ev.edit_original_response(dpp::message("This command can only be used in a server."));
-        return;
-    }
-
-    auto it = g_states.find(guild_id);
-    if (it == g_states.end() || it->second.queue.empty()) {
-        ev.edit_original_response(dpp::message("The queue is currently empty."));
-        return;
-    }
-
-    const guild_music_state& st = it->second;
-
-    std::ostringstream msg;
-    msg << "Current queue (" << st.queue.size() << " track"
-        << (st.queue.size() == 1 ? "" : "s") << "):\n";
-
-    std::size_t index = 0;
-    for (const auto& t : st.queue) {
-        msg << (index == 0 ? "**Now playing**" : std::to_string(index) + ".")
-            << " — " << t.title;
-        if (!t.author.empty()) {
-            msg << " — *" << t.author << '*';
-        }
-        msg << '\n';
-        ++index;
-
-        if (index >= 10) { // avoid huge messages
-            msg << "... and more.";
-            break;
+                res.tracks.push_back(std::move(t));
+            }
         }
     }
 
-    ev.edit_original_response(dpp::message(msg.str()));
+    if (res.type == load_type::error) {
+        m_cluster.log(
+            dpp::ll_warning,
+            "Lavalink /loadtracks error for identifier '" + identifier +
+            "': " + res.error_message
+        );
+    } else {
+        std::ostringstream oss;
+        oss << "Loaded " << res.tracks.size()
+            << " track(s) from Lavalink for identifier: " << identifier;
+        m_cluster.log(dpp::ll_info, oss.str());
+    }
+
+    return res;
 }
 
-/* Public API */
+bool node::send_player_update(dpp::snowflake guild_id,
+                              const std::string& body_json,
+                              bool log_payload)
+{
+    if (m_session_id.empty()) {
+        m_cluster.log(
+            dpp::ll_warning,
+            "Cannot send player update: session id is empty"
+        );
+        return false;
+    }
 
-void register_commands(dpp::cluster& /*bot*/) {
-    // Kept for compatibility; registration is done via make_commands() in main.cpp
+    std::string path = "/v4/sessions/" + m_session_id +
+                       "/players/" + guild_id.str();
+
+    if (log_payload) {
+        std::ostringstream oss;
+        oss << "Sending player update to Lavalink for guild "
+            << guild_id << ": " << body_json;
+        m_cluster.log(dpp::ll_debug, oss.str());
+    }
+
+    std::string resp = http_request("PATCH", path, body_json);
+    // http_request already logged status; treat non-empty body as "sent"
+    return !resp.empty();
 }
 
-std::vector<dpp::slashcommand> make_commands(dpp::cluster& bot) {
-    std::vector<dpp::slashcommand> cmds;
+bool node::play(dpp::snowflake guild_id,
+                const std::string& encoded_track,
+                bool no_replace,
+                std::optional<long int> start_position_ms,
+                std::optional<int> volume)
+{
+    using json = nlohmann::json_abi_v3_11_2::json;
 
-    // /play query:<string>
-    {
-        dpp::slashcommand play_cmd("play", "Play a track or search YouTube", bot.me.id);
-        play_cmd.add_option(
-            dpp::command_option(dpp::co_string, "query",
-                                "URL or search term", true));
-        cmds.push_back(play_cmd);
+    json payload;
+    payload["encodedTrack"] = encoded_track;
+    payload["noReplace"]    = no_replace;
+
+    if (start_position_ms.has_value()) {
+        payload["position"] = *start_position_ms;
+    }
+    if (volume.has_value()) {
+        payload["volume"] = *volume;
     }
 
-    // /pause pause:<bool>
+    std::optional<voice_state> vs;
     {
-        dpp::slashcommand pause_cmd("pause", "Pause or resume playback", bot.me.id);
-        pause_cmd.add_option(
-            dpp::command_option(dpp::co_boolean, "pause",
-                                "True to pause, false to resume", true));
-        cmds.push_back(pause_cmd);
+        std::lock_guard<std::mutex> lock(m_voice_mutex);
+        vs = get_voice_state_locked(guild_id);
     }
 
-    // /stop
-    {
-        dpp::slashcommand stop_cmd("stop", "Stop playback and clear the queue", bot.me.id);
-        cmds.push_back(stop_cmd);
+    if (vs.has_value()) {
+        payload["voice"]["token"]     = vs->token;
+        payload["voice"]["endpoint"]  = vs->endpoint;
+        payload["voice"]["sessionId"] = vs->session_id;
     }
 
-    // /volume level:<int>
-    {
-        dpp::slashcommand vol_cmd("volume", "Set the player volume", bot.me.id);
-        vol_cmd.add_option(
-            dpp::command_option(dpp::co_integer, "level",
-                                "Volume percentage (0–1000)", true));
-        cmds.push_back(vol_cmd);
-    }
+    std::ostringstream oss;
+    oss << "Sending play to Lavalink for guild " << guild_id
+        << " (noReplace=" << std::boolalpha << no_replace << ")";
+    m_cluster.log(dpp::ll_info, oss.str());
 
-    // /queue
-    {
-        dpp::slashcommand q_cmd("queue", "Show the current music queue", bot.me.id);
-        cmds.push_back(q_cmd);
-    }
-
-    return cmds;
+    return send_player_update(guild_id, payload.dump(), /*log_payload=*/true);
 }
 
-void route_slashcommand(const dpp::slashcommand_t& ev,
-                        fc::lavalink::node& lavalink) {
-    const std::string& name = ev.command.get_command_name();
+bool node::stop(dpp::snowflake guild_id)
+{
+    using json = nlohmann::json_abi_v3_11_2::json;
 
-    if (name == "play") {
-        handle_play(ev, lavalink);
-    } else if (name == "pause") {
-        handle_pause(ev, lavalink);
-    } else if (name == "stop") {
-        handle_stop(ev, lavalink);
-    } else if (name == "volume") {
-        handle_volume(ev, lavalink);
-    } else if (name == "queue") {
-        handle_queue(ev);
-    }
+    json payload;
+    payload["encodedTrack"] = nullptr;
+
+    m_cluster.log(
+        dpp::ll_info,
+        "Sending stop to Lavalink for guild " + guild_id.str()
+    );
+
+    return send_player_update(guild_id, payload.dump(), /*log_payload=*/true);
 }
 
-} // namespace fc::music
+bool node::pause(dpp::snowflake guild_id, bool pause_flag)
+{
+    using json = nlohmann::json_abi_v3_11_2::json;
+
+    json payload;
+    payload["pause"] = pause_flag;
+
+    std::ostringstream oss;
+    oss << "Sending pause=" << std::boolalpha << pause_flag
+        << " to Lavalink for guild " << guild_id;
+    m_cluster.log(dpp::ll_info, oss.str());
+
+    return send_player_update(guild_id, payload.dump(), /*log_payload=*/true);
+}
+
+bool node::set_volume(dpp::snowflake guild_id, int volume_percent)
+{
+    using json = nlohmann::json_abi_v3_11_2::json;
+
+    json payload;
+    payload["volume"] = volume_percent;
+
+    std::ostringstream oss;
+    oss << "Sending volume=" << volume_percent
+        << " to Lavalink for guild " << guild_id;
+    m_cluster.log(dpp::ll_info, oss.str());
+
+    return send_player_update(guild_id, payload.dump(), /*log_payload=*/true);
+}
+
+} // namespace fc::lavalink
