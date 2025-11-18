@@ -13,6 +13,7 @@ static guild_music_state& get_state(dpp::snowflake guild_id) {
     return g_states[guild_id];
 }
 
+// Try to find the invoking user's voice channel using the guild's cached voice_states
 static std::optional<dpp::snowflake>
 find_user_voice_channel(const dpp::slashcommand_t& ev) {
     dpp::snowflake guild_id = ev.command.guild_id;
@@ -26,17 +27,16 @@ find_user_voice_channel(const dpp::slashcommand_t& ev) {
     }
 
     dpp::snowflake user_id = ev.command.get_issuing_user().id;
-    auto it = g->members.find(user_id);
-    if (it == g->members.end()) {
-        return std::nullopt;
+
+    // Older DPP keeps voice states on the guild object
+    for (const auto& kv : g->voice_states) {
+        const dpp::voice_state& vs = kv.second;
+        if (vs.user_id == user_id && vs.channel_id) {
+            return vs.channel_id;
+        }
     }
 
-    const dpp::guild_member& gm = it->second;
-    if (!gm.is_in_voice()) {
-        return std::nullopt;
-    }
-
-    return gm.voice_state.channel_id;
+    return std::nullopt;
 }
 
 static void handle_play(const dpp::slashcommand_t& ev,
@@ -57,10 +57,12 @@ static void handle_play(const dpp::slashcommand_t& ev,
         return;
     }
 
-    // Connect the bot to voice (this will also trigger voice state/server
-    // events that the lavalink::node listens to in main.cpp).
-    dpp::cluster& bot = *ev.from->creator;
-    bot.guild_connect_voice(guild_id, *maybe_vc, false, false);
+    // Get cluster from event (older DPP: from() is an accessor)
+    dpp::cluster& bot = *ev.from()->creator;
+
+    // Connect the bot to the user's voice channel
+    // Older DPP uses connect_voice(guild_id, channel_id, self_mute, self_deaf)
+    bot.connect_voice(guild_id, *maybe_vc, false, false);
 
     // Resolve query
     std::string query = std::get<std::string>(ev.get_parameter("query"));
@@ -95,19 +97,20 @@ static void handle_play(const dpp::slashcommand_t& ev,
     guild_music_state& st = get_state(guild_id);
     st.queue.push_back(first);
 
-    std::ostringstream log;
-    log << "[Music] /play resolved to '" << first.title << "'";
-    bot.log(dpp::ll_info, log.str());
+    {
+        std::ostringstream log;
+        log << "[Music] /play resolved to '" << first.title << "'";
+        bot.log(dpp::ll_info, log.str());
+    }
 
     bool started_now = !st.playing;
     if (started_now) {
         st.playing = true;
 
-        // New play() signature:
         // bool play(snowflake guild_id,
         //           const std::string& encoded_track,
         //           bool no_replace,
-        //           std::optional<long int> end_time,
+        //           std::optional<long int> start_position_ms,
         //           std::optional<int> volume);
         bool ok = lavalink.play(
             guild_id,
@@ -120,7 +123,7 @@ static void handle_play(const dpp::slashcommand_t& ev,
         if (!ok) {
             st.playing = false;
             ev.edit_original_response(
-                dpp::message("Failed to start playback on Lavalink."));
+                dpp::message("Failed to start playback on Lavalink (session/voice not ready)."));
             return;
         }
 
@@ -311,4 +314,3 @@ void route_slashcommand(const dpp::slashcommand_t& ev,
 }
 
 } // namespace fc::music
-
