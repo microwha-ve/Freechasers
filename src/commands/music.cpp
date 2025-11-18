@@ -13,30 +13,23 @@ static guild_music_state& get_state(dpp::snowflake guild_id) {
     return g_states[guild_id];
 }
 
-// Try to find the invoking user's voice channel using the guild's cached voice_states
-static std::optional<dpp::snowflake>
-find_user_voice_channel(const dpp::slashcommand_t& ev) {
+// Join the same voice channel as the invoking user using guild::connect_member_voice
+static bool join_users_voice_channel(const dpp::slashcommand_t& ev) {
     dpp::snowflake guild_id = ev.command.guild_id;
     if (!guild_id) {
-        return std::nullopt;
+        return false;
     }
 
-    const dpp::guild* g = dpp::find_guild(guild_id);
+    dpp::guild* g = dpp::find_guild(guild_id);
     if (!g) {
-        return std::nullopt;
+        return false;
     }
 
     dpp::snowflake user_id = ev.command.get_issuing_user().id;
 
-    // Older DPP keeps voice states on the guild object
-    for (const auto& kv : g->voice_states) {
-        const dpp::voice_state& vs = kv.second;
-        if (vs.user_id == user_id && vs.channel_id) {
-            return vs.channel_id;
-        }
-    }
-
-    return std::nullopt;
+    // Older DPP: this connects the bot to the same voice channel as user_id
+    bool ok = g->connect_member_voice(user_id, false, false);
+    return ok;
 }
 
 static void handle_play(const dpp::slashcommand_t& ev,
@@ -49,20 +42,15 @@ static void handle_play(const dpp::slashcommand_t& ev,
         return;
     }
 
-    // Find the user's voice channel
-    auto maybe_vc = find_user_voice_channel(ev);
-    if (!maybe_vc.has_value()) {
+    // Get cluster for logging etc.
+    dpp::cluster& bot = *ev.from()->creator;
+
+    // Ensure user is in voice and join their channel
+    if (!join_users_voice_channel(ev)) {
         ev.edit_original_response(
             dpp::message("You must be connected to a voice channel first."));
         return;
     }
-
-    // Get cluster from event (older DPP: from() is an accessor)
-    dpp::cluster& bot = *ev.from()->creator;
-
-    // Connect the bot to the user's voice channel
-    // Older DPP uses connect_voice(guild_id, channel_id, self_mute, self_deaf)
-    bot.connect_voice(guild_id, *maybe_vc, false, false);
 
     // Resolve query
     std::string query = std::get<std::string>(ev.get_parameter("query"));
