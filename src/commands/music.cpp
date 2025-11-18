@@ -27,8 +27,13 @@ static bool join_users_voice_channel(const dpp::slashcommand_t& ev) {
 
     dpp::snowflake user_id = ev.command.get_issuing_user().id;
 
-    // Older DPP: this connects the bot to the same voice channel as user_id
-    bool ok = g->connect_member_voice(user_id, false, false);
+    // Need the cluster reference for connect_member_voice
+    dpp::cluster& bot = *ev.from()->creator;
+
+    // Signature (in your DPP):
+    // bool connect_member_voice(const cluster& owner, snowflake user_id,
+    //                           bool self_mute = false, bool self_deaf = false, bool dave = false);
+    bool ok = g->connect_member_voice(bot, user_id, false, false);
     return ok;
 }
 
