@@ -58,14 +58,7 @@ int main() {
 
     std::unordered_set < snowflake > dev_team;
     
-    fc::lavalink::node_config lav_cfg;
-    lav_cfg.host       = "127.0.0.1";
-    lav_cfg.port       = 2333;
-    lav_cfg.https      = false;
-    lav_cfg.password   = "youshallnotpass";
-    lav_cfg.session_id = "default";
 
-    fc::lavalink::node lavalink(bot, lav_cfg);
 
     // Lavalink voice glue
     bot.on_voice_state_update([&](const dpp::voice_state_update_t& ev) {
@@ -388,6 +381,15 @@ int main() {
                 timeoutCommand,
                 shutdownCommand
             };
+
+                fc::lavalink::node_config lav_cfg;
+                lav_cfg.host       = "127.0.0.1";
+                lav_cfg.port       = 2333;
+                lav_cfg.https      = false;
+                lav_cfg.password   = "youshallnotpass";
+                lav_cfg.session_id = "default";
+
+                fc::lavalink::node lavalink(bot, lav_cfg);
             
             auto music_cmds = fc::music::make_commands(bot);
             all_cmds.insert(all_cmds.end(), music_cmds.begin(), music_cmds.end());
