@@ -268,6 +268,7 @@ std::vector<dpp::slashcommand> make_commands(dpp::cluster& bot) {
     return cmds;
 }
 
+// New 3-arg main entry
 void route_slashcommand(const dpp::slashcommand_t& ev,
                         fc::lavalink::node& lavalink,
                         dpp::cluster& bot)
@@ -285,6 +286,18 @@ void route_slashcommand(const dpp::slashcommand_t& ev,
     } else if (name == "queue") {
         handle_queue(ev, bot, lavalink);
     }
+}
+
+// Back-compat 2-arg wrapper used by your current main.cpp
+void route_slashcommand(const dpp::slashcommand_t& ev,
+                        fc::lavalink::node& lavalink)
+{
+    dpp::discord_client* dc = ev.from();
+    if (!dc || !dc->creator) {
+        // No cluster available, cannot route music commands safely.
+        return;
+    }
+    route_slashcommand(ev, lavalink, *dc->creator);
 }
 
 } // namespace fc::music
