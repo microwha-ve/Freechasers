@@ -46,6 +46,8 @@ int main() {
 
     // Defines what the commands will do
     bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
+
+      bool gay = true;
         
 
         if (event.command.get_command_name() == "ping") {
@@ -261,7 +263,24 @@ int main() {
               return;
             }
           
+            if(gay){
             event.reply("Yes tori is gay");
+            } else {
+              event.reply("Tori is not gay right now, use /setgay to set toris gayness")
+            };
+        };
+        
+        if (event.command.get_command_name() == "setgay") {
+            if (event.command.get_issuing_user().id == 647721332812939286) {
+              event.reply("Mein Fräulein has not given you permission to issue me that order.");
+              return;
+            }
+            
+            gayParam = std::get < std::boolean > (event.get_parameter("gay"));
+
+            gay = gayParam;
+
+            event.edit_response("Updated toris gayness");
             
         };
     });
@@ -308,7 +327,9 @@ int main() {
             
           slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
 
-          slashcommand toriCommand("tori", "Is tori gay?", bot.me.id);
+          slashcommand toriCommand("tori", "check if tori is gay", bot.me.id);
+
+          slashcommand setgayCommand("setgay", "decide if tori is gay", bot.me.id);
 
           // statusOption #1
           statusCommand.add_option(
@@ -353,6 +374,10 @@ int main() {
           timeoutCommand.add_option(
             command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
           );
+          // setgayOption #1
+          setgayCommand.add_option(
+            command_option(co_boolean, "gay", "Decide if gay is gay or not, TRUE means yes, FALSE means no", true);
+          );
 
           std::cout << "Registering slash commands..." << std::endl;
           bot.global_bulk_command_create({
@@ -362,7 +387,8 @@ int main() {
             banCommand,
             timeoutCommand,
             shutdownCommand,
-            toriCommand
+            toriCommand,
+            setgayCommand
           });
 
           std::cout << "Registered slash commands!" << std::endl;
