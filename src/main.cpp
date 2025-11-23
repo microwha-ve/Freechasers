@@ -276,7 +276,7 @@ int main() {
               return;
             }
             
-            gayParam = event.get_parameter("gay");
+            bool gayParam = event.get_parameter("gay");
 
             gay = gayParam;
 
