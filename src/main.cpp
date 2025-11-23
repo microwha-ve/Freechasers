@@ -276,7 +276,7 @@ int main() {
               return;
             }
             
-            bool gayParam = event.get_parameter("gay");
+            bool gayParam = std::get < bool > (event.get_parameter("gay"));
 
             gay = gayParam;
 
