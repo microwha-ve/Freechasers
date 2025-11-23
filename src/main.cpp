@@ -44,11 +44,10 @@ int main() {
 
     std::unordered_set < snowflake > dev_team;
 
-    // Defines what the commands will do
-    bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
+    bool gay = true;
 
-      bool gay = true;
-        
+    // Defines what the commands will do
+    bot.on_slashcommand([ & bot, & dev_team, & gay](const slashcommand_t & event) {
 
         if (event.command.get_command_name() == "ping") {
             
