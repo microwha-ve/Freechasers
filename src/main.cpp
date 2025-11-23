@@ -280,7 +280,8 @@ int main() {
 
             gay = gayParam;
 
-            event.edit_response("Updated toris gayness");
+            event.reply("Updated toris gayness");
+            std::cout << gay << std::endl;
             
         };
     });
