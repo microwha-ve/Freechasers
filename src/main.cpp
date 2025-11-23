@@ -376,7 +376,7 @@ int main() {
           );
           // setgayOption #1
           setgayCommand.add_option(
-            command_option(co_boolean, "gay", "Decide if gay is gay or not, TRUE means yes, FALSE means no", true);
+            command_option(co_boolean, "gay", "Decide if gay is gay or not, TRUE means yes, FALSE means no", true)
           );
 
           std::cout << "Registering slash commands..." << std::endl;
