@@ -266,7 +266,7 @@ int main() {
             if(gay){
             event.reply("Yes tori is gay");
             } else {
-              event.reply("Tori is not gay right now, use /setgay to set toris gayness")
+              event.reply("Tori is not gay right now, use /setgay to set toris gayness");
             };
         };
         
