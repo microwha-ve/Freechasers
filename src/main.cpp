@@ -253,7 +253,17 @@ int main() {
                 bot.shutdown();
             }, 3.0);
             
-        }
+        };
+        
+        if (event.command.get_command_name() == "tori") {
+            if (event.command.get_issuing_user().id == 647721332812939286) {
+              event.reply("Mein Fräulein has not given you permission to issue me that order.");
+              return;
+            }
+          
+            event.reply("Yes tori is gay");
+            
+        };
     });
       // Things that run when the bot is connected to discord api
       bot.on_ready([ & bot, & dev_team](const ready_t & event) {
@@ -297,6 +307,8 @@ int main() {
           slashcommand timeoutCommand("timeout", "Put a user in timeout", bot.me.id);
             
           slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
+
+          slashcommand toriCommand("tori", "Is tori gay?", bot.me.id);
 
           // statusOption #1
           statusCommand.add_option(
@@ -349,7 +361,8 @@ int main() {
             //whoamiCommand,
             banCommand,
             timeoutCommand,
-            shutdownCommand
+            shutdownCommand,
+            toriCommand
           });
 
           std::cout << "Registered slash commands!" << std::endl;
