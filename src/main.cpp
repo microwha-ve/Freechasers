@@ -44,10 +44,9 @@ int main() {
 
     std::unordered_set < snowflake > dev_team;
 
-    bool gay = true;
-
     // Defines what the commands will do
-    bot.on_slashcommand([ & bot, & dev_team, & gay](const slashcommand_t & event) {
+    bot.on_slashcommand([ & bot, & dev_team](const slashcommand_t & event) {
+        
 
         if (event.command.get_command_name() == "ping") {
             
@@ -254,35 +253,7 @@ int main() {
                 bot.shutdown();
             }, 3.0);
             
-        };
-        
-        if (event.command.get_command_name() == "tori") {
-            if (event.command.get_issuing_user().id == 647721332812939286) {
-              event.reply("Mein Fräulein has not given you permission to issue me that order.");
-              return;
-            }
-          
-            if(gay){
-            event.reply("Yes tori is gay");
-            } else {
-              event.reply("Tori is not gay right now, use /setgay to set toris gayness");
-            };
-        };
-        
-        if (event.command.get_command_name() == "setgay") {
-            if (event.command.get_issuing_user().id == 647721332812939286) {
-              event.reply("Mein Fräulein has not given you permission to issue me that order.");
-              return;
-            }
-            
-            const bool gayParam = std::get < bool > (event.get_parameter("gay"));
-
-            gay = gayParam;
-
-            event.reply("Updated toris gayness");
-            std::cout << gay << std::endl;
-            
-        };
+        }
     });
       // Things that run when the bot is connected to discord api
       bot.on_ready([ & bot, & dev_team](const ready_t & event) {
@@ -327,10 +298,6 @@ int main() {
             
           slashcommand shutdownCommand("shutdown", "Turns the bot off? Like what did u expect", bot.me.id);
 
-          slashcommand toriCommand("tori", "check if tori is gay", bot.me.id);
-
-          slashcommand setgayCommand("setgay", "decide if tori is gay", bot.me.id);
-
           // statusOption #1
           statusCommand.add_option(
             command_option(co_string, "status", "Select a status", true) // 'true' makes the option required
@@ -374,10 +341,6 @@ int main() {
           timeoutCommand.add_option(
             command_option(co_integer, "time", "Time in minutes, from 1 to 10080 minutes", true)
           );
-          // setgayOption #1
-          setgayCommand.add_option(
-            command_option(co_boolean, "gay", "Decide if gay is gay or not, TRUE means yes, FALSE means no", true)
-          );
 
           std::cout << "Registering slash commands..." << std::endl;
           bot.global_bulk_command_create({
@@ -386,9 +349,7 @@ int main() {
             //whoamiCommand,
             banCommand,
             timeoutCommand,
-            shutdownCommand,
-            toriCommand,
-            setgayCommand
+            shutdownCommand
           });
 
           std::cout << "Registered slash commands!" << std::endl;
