@@ -222,9 +222,9 @@ int main() {
                   event.edit_response("Timeout applied successfully.");
 
                   // Notify in log channel
-                  std::string msg = "<@" + userID.str() + "> has been confined for " + std::to_string(minutes) + " minutes";
+                  std::string msg = "<@" + userID.str() + "> has been confined by <@" + event.command.get_issuing_user().id + ">, for " + std::to_string(minutes) + " minutes";
                   if (!reason.empty())
-                    msg += ". Reason: " + reason;
+                    msg += ", with the following reasoning: " + reason;
 
                   bot.message_create(message(log_channel_id, msg));
 
